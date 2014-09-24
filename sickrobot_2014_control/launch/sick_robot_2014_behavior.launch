@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<launch>
+<node pkg="sickrobot_2014_control" type="sickrobot_behaviour" name="sickrobot_behaivour" output="screen">
+  </node>
+</launch>

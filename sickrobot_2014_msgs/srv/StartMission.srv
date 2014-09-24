@@ -1,0 +1,6 @@
+# this service starts or stops the sick robot day mission
+
+# true: start, false: stop
+bool start
+
+---
