@@ -57,11 +57,11 @@ public:
 
     // get moveBaseClient
     // tell the action client that we want to spin a thread by default
-    //mbClient = new MoveBaseClient ("move_base", true);
+    mbClient = new MoveBaseClient ("move_base", true);
     // wait for the action server to come up
-    //while (!mbClient->waitForServer(ros::Duration(5.0)))
-      //ROS_INFO("Waiting for the move_base action server to come up");
-     //
+   while (!mbClient->waitForServer(ros::Duration(5.0)))
+      ROS_INFO("Waiting for the move_base action server to come up");
+
   }
 
 
@@ -149,9 +149,9 @@ protected:
         _state = _nextSingleState;
 
       std_msgs::String msg;
-    msg.data = getStateName(_state);
-    messagePublisher.publish(msg);
-    ROS_INFO("_state = %i (%s)", _state, getStateName(_state).c_str());
+   // msg.data = getStateName(_state);
+ //   messagePublisher.publish(msg);
+  //  ROS_INFO("_state = %i (%s)", _state, getStateName(_state).c_str());
 
       switch(_state) {          
         case STATE_START:
@@ -191,7 +191,24 @@ protected:
   void drive_1m()
   {
     ROS_INFO("state: drive_1m");
-    _state = STATE_STOP;
+
+    geometry_msgs::Point my_pos;
+    float                my_yaw;
+
+    getCurrentPosition(&my_pos, &my_yaw);
+
+    std::cout << "pos x:" <<my_pos.x << "   pos_y:"<<my_pos.y << "   my pos z:" <<my_pos.z<<std::endl;
+    move_base_msgs::MoveBaseGoal goal;
+    goal.target_pose.header.frame_id = "map";
+    goal.target_pose.header.stamp = ros::Time::now();
+
+    goal.target_pose.pose.position.x = my_pos.x+0.5;
+    goal.target_pose.pose.position.y = my_pos.y;
+    goal.target_pose.pose.position.z = my_pos.z;
+    goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(my_yaw);
+
+    _state = STATE_DRIVE_TO_GOAL;
+    driveToGoal(goal);
   }
 
   int curr_waypoint_index;
@@ -307,13 +324,13 @@ protected:
 //    return true;
 //  }
 
-//  void driveToGoal()
-//  {
-//    while (_state == STATE_DRIVE_TO_GOAL) {
-//      // UNTESTED
-//      move_base_msgs::MoveBaseGoal goal;
+  void driveToGoal(move_base_msgs::MoveBaseGoal goal)
+  {
+    while (_state == STATE_DRIVE_TO_GOAL) {
+      // UNTESTED
+      //move_base_msgs::MoveBaseGoal goal;
 
-//      // we'll send a goal to the robot
+      // we'll send a goal to the robot
 //      goal.target_pose.header.frame_id = "map";
 //      goal.target_pose.header.stamp = ros::Time::now();
 
@@ -321,13 +338,13 @@ protected:
 //      goal.target_pose.pose.position.y = 0.0;
 //      goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(3.14);
 
-//      ROS_INFO("Sending goal");
-//      mbClient->sendGoal(goal);
+      ROS_INFO("Sending goal");
+      mbClient->sendGoal(goal);
 
-//      mbClient->waitForResult();
+      mbClient->waitForResult();
 
-//      if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
-//        ROS_INFO("Great we reached the goal");
+      if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+        ROS_INFO("Great we reached the goal");
 
 
 //        geometry_msgs::Point final_goal_pos;
@@ -341,13 +358,13 @@ protected:
 //        this->adjustYaw(final_goal_pos, 0.025);
 //        this->adjustTranslation(final_goal_pos, 0.2);
 
-//        setState(STATE_DROP_BALL);
-//        return;
-//      } else {
-//        ROS_INFO("That was bad, we didn't reach our goal");
-//      }
-//    }
-//  }
+        setState(STATE_STOP);
+        return;
+      } else {
+        ROS_INFO("That was bad, we didn't reach our goal");
+      }
+    }
+  }
 
 
 
@@ -508,7 +525,8 @@ private:
       STATE_IDLE,
     STATE_START,
     STATE_STOP,
-    STATE_DRIVE_1m
+    STATE_DRIVE_1m,
+    STATE_DRIVE_TO_GOAL
   };
 
   std::string getStateName(State _state)
@@ -522,6 +540,8 @@ private:
         return "STATE_STOP";
       case STATE_DRIVE_1m:
         return "STATE_DRIVE_1m";
+      case STATE_DRIVE_TO_GOAL:
+        return "STATE_DRIVE_TO_GOAL";
 
       default:
         return "undefined state";
