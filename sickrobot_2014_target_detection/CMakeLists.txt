@@ -107,14 +107,14 @@ include_directories(
 # )
 
 ## Declare a cpp executable
-add_executable(sickrobot_2014_target_detection_node src/sickrobot_2014_target_detection_node.cpp)
+add_executable(target_fiducial_detection_node src/target_fiducial_detection_node.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
 # add_dependencies(sickrobot_2014_target_detection_node sickrobot_2014_target_detection_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(sickrobot_2014_target_detection_node
+target_link_libraries(target_fiducial_detection_node
    ${catkin_LIBRARIES}
    ${OpenCV_LIBRARIES}
 )

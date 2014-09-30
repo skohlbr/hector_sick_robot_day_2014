@@ -103,7 +103,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg)
         return;
     }
 
-    ROS_INFO("Image recieved");
+    ROS_INFO("Image received");
     cv::Mat image, image_gray, image_circles, image_lines, image_template;
     image = cv_ptr->image.clone();
     image_circles = cv_ptr->image.clone();

@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+
+<launch>
+  
+  <node name="target_fiducial_detection" pkg="sickrobot_2014_target_detection" type="target_fiducial_detection_node" respawn="true" output="screen">
+    <remap from="/camera/rgb/image_raw" to="/openni/rgb/image_raw"/>
+  </node>
+  
+</launch>
