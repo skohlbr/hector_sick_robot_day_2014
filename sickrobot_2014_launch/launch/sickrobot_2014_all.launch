@@ -1,7 +1,10 @@
 <launch>
-    
+
     <include file="$(find hector_turtlebot_gazebo)/launch/start_in_sick_robot_day_2014_world.launch" />
     <include file="$(find hector_turtlebot_navigation)/launch/gmapping.launch" />
     <include file="$(find sickrobot_2014_control)/launch/sick_robot_2014_behavior.launch" />
 
+
+    <include file="$(find hector_object_tracker)/launch/object_tracker_turtlebot.launch" />
+    <include file="$(find hector_octomap_server)/launch/octomap_server_hector_ugv.launch" />
 </launch>
