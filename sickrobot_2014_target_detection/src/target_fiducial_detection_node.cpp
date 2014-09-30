@@ -5,6 +5,8 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
+#include <vector>
+
 cv::Mat templ;
 
 void matchCircles(cv::Mat &image_gray, std::vector<cv::Vec3f> &circles){
@@ -24,6 +26,24 @@ void drawFoundCircles(cv::Mat &src, std::vector<cv::Vec3f> &circles){
     }
 }
 
+void matchLines(cv::Mat &image_gray, std::vector<cv::Vec2f> &lines){
+    cv::Mat edges;
+    cv::Canny(image_gray,edges, 50, 100);
+
+    cv::HoughLines(edges, lines, 1, CV_PI/180, 65);
+}
+
+struct lineIsInvalid {
+    bool operator()(const cv::Vec2f& line) const {
+        float theta = line[1];
+        return ((theta>CV_PI/180*10 && theta<CV_PI/180*80) || (theta>CV_PI/180*100 && theta<CV_PI/180*170) || (theta>CV_PI/180*190 && theta<CV_PI/180*260) ||(theta>CV_PI/180*280 && theta<CV_PI/180*350));
+    }
+};
+
+void filterLines(std::vector<cv::Vec2f> &lines){
+    lines.erase(std::remove_if( lines.begin(), lines.end(), lineIsInvalid()), lines.end());
+}
+
 void matchLinesStandart(cv::Mat &image_gray, std::vector<cv::Vec2f> &lines){
     cv::HoughLines(image_gray, lines, 1, CV_PI, 300, 0, 0 );
 }
@@ -37,7 +57,7 @@ void drawFoundLines(cv::Mat &src, std::vector<cv::Vec2f> &lines){
     {
         float rho = lines[i][0], theta = lines[i][1];
 
-     if( theta>CV_PI/180*170 || theta<CV_PI/180*10){
+        // if( theta>CV_PI/180*170 || theta<CV_PI/180*10){
         cv::Point pt1, pt2;
         double a = cos(theta), b = sin(theta);
         double x0 = a*rho, y0 = b*rho;
@@ -46,7 +66,7 @@ void drawFoundLines(cv::Mat &src, std::vector<cv::Vec2f> &lines){
         pt2.x = cvRound(x0 - 1000*(-b));
         pt2.y = cvRound(y0 - 1000*(a));
         cv::line( src, pt1, pt2, cv::Scalar(0,0,255), 1, CV_AA);
-     }
+        //}
     }
 }
 
@@ -54,8 +74,8 @@ void drawFoundLines(cv::Mat &src, std::vector<cv::Vec4i> &lines){
     ROS_INFO("Found Lines: %d", lines.size());
     for( size_t i = 0; i < lines.size(); i++ )
     {
-      cv::Vec4i l = lines[i];
-      cv::line( src, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(0,0,255), 3, CV_AA);
+        cv::Vec4i l = lines[i];
+        cv::line( src, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(0,0,255), 3, CV_AA);
     }
 }
 
@@ -115,12 +135,13 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg)
     std::vector<cv::Vec3f> circles;
     matchCircles(image_gray, circles);
     drawFoundCircles(image_circles, circles);
-/*
+
     std::vector<cv::Vec2f> lines;
-    matchLinesStandart(image_gray, lines);
-   drawFoundLines(image_lines, lines);
-   */
-/*
+    matchLines(image_gray, lines);
+    filterLines(lines);
+    drawFoundLines(image_lines, lines);
+
+    /*
      std::vector<cv::Vec4i> linesProb;
     matchLinesProbabilistic(image_gray, linesProb);
     drawFoundLines(image_lines, linesProb);
@@ -143,7 +164,7 @@ int main(int argc, char **argv)
     cv::namedWindow("Circles");
     cv::namedWindow("Lines");
     //cv::namedWindow("Template");
-    templ = cv::imread("template.jpg");
+    //templ = cv::imread("template.jpg");
     ros::spin();
     cv::destroyWindow("Circles");
     cv::destroyWindow("Lines");
