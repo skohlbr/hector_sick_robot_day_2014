@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+
+<launch>
+  
+  <node name="digit_detection" pkg="hector_digit_detection" type="digit_detection_node" respawn="true" output="screen">
+    <remap from="camera" to="/openni/rgb/image_raw"/>
+    <remap from="digit_percept" to="/worldmodel/image_percept"/>
+    <param name="img_path" value="$(find hector_digit_detection)/images" />
+
+  </node>
+ </launch>
