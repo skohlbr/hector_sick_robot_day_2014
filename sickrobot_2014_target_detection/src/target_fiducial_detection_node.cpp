@@ -8,13 +8,14 @@
 #include <vector>
 
 cv::Mat templ;
+bool debug_;
 
 void matchCircles(cv::Mat &image_gray, std::vector<cv::Vec3f> &circles){
     cv::HoughCircles( image_gray, circles, CV_HOUGH_GRADIENT, 1, 10); // Apply the Hough Transform to find the circles
 }
 
 void drawFoundCircles(cv::Mat &src, std::vector<cv::Vec3f> &circles){
-    ROS_INFO("Found Circles: %d", circles.size());
+    ROS_DEBUG("Found Circles: %d", circles.size());
     for( size_t i = 0; i < circles.size(); i++ )
     {
         cv::Point center(cvRound(circles[i][0]), cvRound(circles[i][1]));
@@ -52,7 +53,7 @@ void matchLinesProbabilistic(cv::Mat &image_gray, std::vector<cv::Vec4i> &lines)
 }
 
 void drawFoundLines(cv::Mat &src, std::vector<cv::Vec2f> &lines){
-    ROS_INFO("Found Lines: %d", lines.size());
+    ROS_DEBUG("Found Lines: %d", lines.size());
     for( size_t i = 0; i < lines.size(); i++ )
     {
         float rho = lines[i][0], theta = lines[i][1];
@@ -71,7 +72,7 @@ void drawFoundLines(cv::Mat &src, std::vector<cv::Vec2f> &lines){
 }
 
 void drawFoundLines(cv::Mat &src, std::vector<cv::Vec4i> &lines){
-    ROS_INFO("Found Lines: %d", lines.size());
+    ROS_DEBUG("Found Lines: %d", lines.size());
     for( size_t i = 0; i < lines.size(); i++ )
     {
         cv::Vec4i l = lines[i];
@@ -123,7 +124,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg)
         return;
     }
 
-    ROS_INFO("Image received");
+    ROS_DEBUG("Image received");
     cv::Mat image, image_gray, image_circles, image_lines, image_template;
     image = cv_ptr->image.clone();
     image_circles = cv_ptr->image.clone();
@@ -134,12 +135,11 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg)
 
     std::vector<cv::Vec3f> circles;
     matchCircles(image_gray, circles);
-    drawFoundCircles(image_circles, circles);
 
     std::vector<cv::Vec2f> lines;
     matchLines(image_gray, lines);
     filterLines(lines);
-    drawFoundLines(image_lines, lines);
+
 
     /*
      std::vector<cv::Vec4i> linesProb;
@@ -148,25 +148,40 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg)
 */
     //matchTemplate(image, image_template, 1);
 
-    cv::imshow("Circles", image_circles);
-    cv::imshow("Lines", image_lines);
-    //cv::imshow("Template", image_template);
-    cv::waitKey(3);
+    if (debug_){
+      drawFoundCircles(image_circles, circles);
+      drawFoundLines(image_lines, lines);
+
+      cv::imshow("Circles", image_circles);
+      cv::imshow("Lines", image_lines);
+      //cv::imshow("Template", image_template);
+      cv::waitKey(3);
+    }
 
 }
 
 int main(int argc, char **argv)
 {
+    debug_ = false;
+
     ros::init(argc, argv, "target_detection");
     ros::NodeHandle nh;
     image_transport::ImageTransport it(nh);
     image_transport::Subscriber sub = it.subscribe("/camera/rgb/image_raw", 1, imageCallback);
-    cv::namedWindow("Circles");
-    cv::namedWindow("Lines");
+
+    if (debug_){
+      cv::namedWindow("Circles");
+      cv::namedWindow("Lines");
+    }
+
     //cv::namedWindow("Template");
     //templ = cv::imread("template.jpg");
     ros::spin();
-    cv::destroyWindow("Circles");
-    cv::destroyWindow("Lines");
+
+    if (debug_){
+      cv::destroyWindow("Circles");
+      cv::destroyWindow("Lines");
+    }
+
     //cv::destroyWindow("Template");
 }
