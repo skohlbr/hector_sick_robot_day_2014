@@ -4,6 +4,7 @@
   
   <node name="target_fiducial_detection" pkg="sickrobot_2014_target_detection" type="target_fiducial_detection_node" respawn="true" output="screen">
     <remap from="camera" to="/openni/rgb/image_raw"/>
+    <remap from="image_percept" to="/worldmodel/image_percept"/>
   </node>
   
 </launch>
