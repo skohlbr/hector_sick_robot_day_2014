@@ -1,3 +1,5 @@
+<?xml version="1.0"?>
+
 <launch>
 
     <include file="$(find hector_turtlebot_gazebo)/launch/start_in_sick_robot_day_2014_world.launch" />
@@ -6,5 +8,9 @@
 
 
     <include file="$(find hector_object_tracker)/launch/object_tracker_turtlebot.launch" />
+    
+    <!--
+    We don´t need octomap, so don´t use it for now (SK)
     <include file="$(find hector_octomap_server)/launch/octomap_server_hector_ugv.launch" />
+    -->
 </launch>
