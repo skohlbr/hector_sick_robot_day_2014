@@ -59,6 +59,7 @@ public:
 
 
         _run = false;
+        _has_cargo=false;
         _executeSingleState = false;
         _nextSingleState = STATE_IDLE;
 
@@ -108,8 +109,8 @@ public:
     {
         ROS_INFO("I am thread 1!");
 
-        add_stations_to_worldmodel(0,0,0,"ladestation", "0", "Ladestation 0");
-        add_stations_to_worldmodel(-3.5,0,0,"entladestation", "1", "Entladestation 1");
+        //add_stations_to_worldmodel(0,0,0,"ladestation", "0", "Ladestation 0");
+        //add_stations_to_worldmodel(-3.5,0,0,"entladestation", "1", "Entladestation 1");
 
         while (true) {
             if (_state == STATE_IDLE ||
@@ -119,7 +120,8 @@ public:
                     ) {
                 // do nothing
                 ROS_INFO("do nothing");
-            } else if (_state == STATE_DRIVE_1m){
+            } //else if (_state == STATE_DRIVE_1m){
+            else{
                 ROS_INFO("do something if STATE_DRIVE_1m");
                 //ROS_INFO("run1: went into the state request for finding target balls");
                 //          if (getNearestBall()){
@@ -169,23 +171,34 @@ protected:
             case STATE_START:
                 start_task();
                 break;
-            case STATE_LOAD_HOLZKLOTZ:
-                load_holzklotz();
+            case STATE_DRIVE_TO_FIRST_LOAD_STATION:
+                drive_to_frist_load_station_task();
+
+            case STATE_POSITIONING:
+                positioning_task();
+            case STATE_LOAD_CARGO:
+                load_cargo_task();
                 break;
             case STATE_FIND_UNLOAD_STATION:
-                find_unload_station();
+                find_unload_station_task();
                 break;
             case STATE_DRIVE_TO_UNLOAD_STATION:
-                drive_to_unload_station();
+                drive_to_unload_station_task();
                 break;
+            case STATE_EXPLORATION:
+                exploration_task();
+            case STATE_UNLOAD_CARGO:
+                unload_cargo_task();
+            case STATE_DRIVE_TO_LOAD_STATION:
+                drive_to_load_station_task();
             case STATE_STOP:
                 _state_lock = false;
                 break;
 
-            case STATE_DRIVE_1m:
-                // driveToGoal();
-                drive_1m();
-                break;
+//            case STATE_DRIVE_1m:
+//                // driveToGoal();
+//                drive_1m();
+//                break;
             };
 
             //      if (_executeSingleState) {
@@ -201,54 +214,111 @@ protected:
 
     hector_worldmodel_msgs::AddObject srv_call;
 
-    void add_stations_to_worldmodel(double position_x,double position_y,double position_z, std::string class_id, std::string object_id, std::string name){
+    //    void add_stations_to_worldmodel(double position_x,double position_y,double position_z, std::string class_id, std::string object_id, std::string name){
 
-        srv_call.request.object.header.stamp = ros::Time::now();
-        srv_call.request.object.header.frame_id = "map";
-        srv_call.request.object.header.seq++;
+    //        srv_call.request.object.header.stamp = ros::Time::now();
+    //        srv_call.request.object.header.frame_id = "map";
+    //        srv_call.request.object.header.seq++;
 
-        srv_call.request.object.pose.pose.position.x = position_x;
-        srv_call.request.object.pose.pose.position.y = position_y;
-        srv_call.request.object.pose.pose.position.z = position_z;
+    //        srv_call.request.object.pose.pose.position.x = position_x;
+    //        srv_call.request.object.pose.pose.position.y = position_y;
+    //        srv_call.request.object.pose.pose.position.z = position_z;
 
-        srv_call.request.object.pose.pose.orientation = tf::createQuaternionMsgFromYaw(0);
+    //        srv_call.request.object.pose.pose.orientation = tf::createQuaternionMsgFromYaw(0);
 
-        srv_call.request.object.info.class_id = class_id;
-        srv_call.request.object.info.object_id = object_id;
-        srv_call.request.object.info.name = name;
-        srv_call.request.object.info.support = 1.0;
-        srv_call.request.object.state.state = 70;
+    //        srv_call.request.object.info.class_id = class_id;
+    //        srv_call.request.object.info.object_id = object_id;
+    //        srv_call.request.object.info.name = name;
+    //        srv_call.request.object.info.support = 1.0;
+    //        srv_call.request.object.state.state = 70;
 
-        if(!worldmodel_AddObject.call(srv_call)){
-            ROS_ERROR("Failed to add object to worldmodel");
-        }
+    //        if(!worldmodel_AddObject.call(srv_call)){
+    //            ROS_ERROR("Failed to add object to worldmodel");
+    //        }
 
-    }
+    //    }
 
     void start_task()
     {
-        add_stations_to_worldmodel(0,0,0,"ladestation", "0", "Ladestation 0"); //Insert current position as start_position
+        //add_stations_to_worldmodel(0,0,0,"ladestation", "0", "Ladestation 0"); //Insert current position as start_position
         ROS_INFO("state: start");
-        _state = STATE_LOAD_HOLZKLOTZ;
+
+        _state = STATE_DRIVE_TO_FIRST_LOAD_STATION;
     }
 
-    void load_holzklotz(){
-        ROS_INFO("state: load_holzklotz");
 
+
+    void drive_to_frist_load_station_task(){
+        //drive straight until first goal station is seen, then drive towards it till certain distance threshold
+        _state = STATE_POSITIONING;
+    }
+
+    void positioning_task(){
+        // try to reach a good position under the ring
+        bool good_position=false;
+        while (!good_position){
+            //try to find one, maybe reapproaching instead of finetuning need to save the best approaching point for next time we want to reach this goal
+        }
+
+        if (!_has_cargo){
+        _state=STATE_LOAD_CARGO;}
+        else {
+            _state=STATE_UNLOAD_CARGO;
+        }
+
+    }
+
+    void load_cargo_task(){
+        ROS_INFO("state: load_cargo");
+        while (!_has_cargo){
         if(present_holzklotz >= 0){
+            _has_cargo=true;
             _state = STATE_FIND_UNLOAD_STATION;
+            break;
+            //set the number of current unload station
+        }
+        ros::Duration(0.1).sleep();
         }
 
     }
 
 
-    void find_unload_station(){
+    void find_unload_station_task(){
         ROS_INFO("state: find_unload_station");
+        bool station_known=false;
         //TODO find unload station in worldmodel
-        _state = STATE_DRIVE_TO_UNLOAD_STATION;
+
+        if (station_known){
+        _state = STATE_DRIVE_TO_UNLOAD_STATION;}
+        else{
+            _state=STATE_EXPLORATION;
+        }
     }
 
-    void drive_to_unload_station(){
+    void find_load_station(){
+        ROS_INFO("state: find_load_station");
+        bool found_one=false;
+        //TODO find unload station in worldmodel
+
+        if (found_one){
+        _state = STATE_DRIVE_TO_LOAD_STATION ;}
+        else{
+            _state=STATE_EXPLORATION;
+        }
+    }
+
+    void exploration_task(){
+        //do this kind of wall following till current target station is known
+        bool is_known=false;
+        while (!is_known){
+            //search
+        }
+        _state=STATE_DRIVE_TO_UNLOAD_STATION;
+    }
+
+    void drive_to_unload_station_task(){
+
+        //think about station could be blocked here !!!! Add some wait state
         ROS_INFO("state: drive_to_unload_station");
         move_base_msgs::MoveBaseGoal station;
 
@@ -276,7 +346,8 @@ protected:
             if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
                 ROS_INFO("Great we reached the goal");
 
-                setState(STATE_STOP);
+               // setState(STATE_STOP);
+                _state=STATE_POSITIONING;
                 return;
             } else {
                 ROS_INFO("That was bad, we didn't reach our goal");
@@ -284,27 +355,48 @@ protected:
         }
     }
 
+    void unload_cargo_task(){
+
+        ROS_INFO("state: unload_cargo");
+        while (_has_cargo){
+        if(present_holzklotz < 0){ // check if scanner sending -1 in case of no detection
+            _has_cargo=true;
+            _state = STATE_DRIVE_TO_LOAD_STATION;
+            break;
+            //set the number of current unload station
+        }
+        ros::Duration(0.1).sleep();
+        }
+
+    }
+
+    void drive_to_load_station_task(){
+     //look for next loading station, maybe choose always "our" one as other teams maybe also do this
+
+        _state=STATE_POSITIONING;
+    }
+
     void drive_1m()
     {
-        ROS_INFO("state: drive_1m");
+//        ROS_INFO("state: drive_1m");
 
-        geometry_msgs::Point my_pos;
-        float                my_yaw;
+//        geometry_msgs::Point my_pos;
+//        float                my_yaw;
 
-        getCurrentPosition(&my_pos, &my_yaw);
+//        getCurrentPosition(&my_pos, &my_yaw);
 
-        std::cout << "pos x:" <<my_pos.x << "   pos_y:"<<my_pos.y << "   my pos z:" <<my_pos.z<<std::endl;
-        move_base_msgs::MoveBaseGoal goal;
-        goal.target_pose.header.frame_id = "map";
-        goal.target_pose.header.stamp = ros::Time::now();
+//        std::cout << "pos x:" <<my_pos.x << "   pos_y:"<<my_pos.y << "   my pos z:" <<my_pos.z<<std::endl;
+//        move_base_msgs::MoveBaseGoal goal;
+//        goal.target_pose.header.frame_id = "map";
+//        goal.target_pose.header.stamp = ros::Time::now();
 
-        goal.target_pose.pose.position.x = my_pos.x+0.5;
-        goal.target_pose.pose.position.y = my_pos.y;
-        goal.target_pose.pose.position.z = my_pos.z;
-        goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(my_yaw);
+//        goal.target_pose.pose.position.x = my_pos.x+0.5;
+//        goal.target_pose.pose.position.y = my_pos.y;
+//        goal.target_pose.pose.position.z = my_pos.z;
+//        goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(my_yaw);
 
-        _state = STATE_DRIVE_TO_GOAL;
-        driveToGoal(goal);
+//        _state = STATE_DRIVE_TO_GOAL;
+//        driveToGoal(goal);
     }
 
     int curr_waypoint_index;
@@ -420,47 +512,47 @@ protected:
     //    return true;
     //  }
 
-    void driveToGoal(move_base_msgs::MoveBaseGoal goal)
-    {
-        while (_state == STATE_DRIVE_TO_GOAL) {
-            // UNTESTED
-            //move_base_msgs::MoveBaseGoal goal;
+//    void driveToGoal(move_base_msgs::MoveBaseGoal goal)
+//    {
+//        while (_state == STATE_DRIVE_TO_GOAL) {
+//            // UNTESTED
+//            //move_base_msgs::MoveBaseGoal goal;
 
-            // we'll send a goal to the robot
-            //      goal.target_pose.header.frame_id = "map";
-            //      goal.target_pose.header.stamp = ros::Time::now();
+//            // we'll send a goal to the robot
+//            //      goal.target_pose.header.frame_id = "map";
+//            //      goal.target_pose.header.stamp = ros::Time::now();
 
-            //      goal.target_pose.pose.position.x = 0.5;
-            //      goal.target_pose.pose.position.y = 0.0;
-            //      goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(3.14);
+//            //      goal.target_pose.pose.position.x = 0.5;
+//            //      goal.target_pose.pose.position.y = 0.0;
+//            //      goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(3.14);
 
-            ROS_INFO("Sending goal");
-            mbClient->sendGoal(goal);
+//            ROS_INFO("Sending goal");
+//            mbClient->sendGoal(goal);
 
-            mbClient->waitForResult();
+//            mbClient->waitForResult();
 
-            if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
-                ROS_INFO("Great we reached the goal");
+//            if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+//                ROS_INFO("Great we reached the goal");
 
 
-                //        geometry_msgs::Point final_goal_pos;
-                //        final_goal_pos.x = 0.2;
-                //        final_goal_pos.y = 0.0;
-                //        final_goal_pos.z = 0.0;
+//                //        geometry_msgs::Point final_goal_pos;
+//                //        final_goal_pos.x = 0.2;
+//                //        final_goal_pos.y = 0.0;
+//                //        final_goal_pos.z = 0.0;
 
-                //        this->adjustYaw(final_goal_pos, 0.05);
-                //        this->adjustTranslation(final_goal_pos, 0.4);
+//                //        this->adjustYaw(final_goal_pos, 0.05);
+//                //        this->adjustTranslation(final_goal_pos, 0.4);
 
-                //        this->adjustYaw(final_goal_pos, 0.025);
-                //        this->adjustTranslation(final_goal_pos, 0.2);
+//                //        this->adjustYaw(final_goal_pos, 0.025);
+//                //        this->adjustTranslation(final_goal_pos, 0.2);
 
-                setState(STATE_STOP);
-                return;
-            } else {
-                ROS_INFO("That was bad, we didn't reach our goal");
-            }
-        }
-    }
+//                setState(STATE_STOP);
+//                return;
+//            } else {
+//                ROS_INFO("That was bad, we didn't reach our goal");
+//            }
+//        }
+//    }
 
 
 
@@ -618,16 +710,21 @@ private:
 
 
     bool _run;
+    bool _has_cargo;
+
 
     enum State {
         STATE_IDLE,
         STATE_START,
         STATE_STOP,
-        STATE_DRIVE_1m,
-        STATE_DRIVE_TO_GOAL,
-        STATE_LOAD_HOLZKLOTZ,
+        STATE_DRIVE_TO_LOAD_STATION,
+        STATE_LOAD_CARGO,
         STATE_FIND_UNLOAD_STATION,
-        STATE_DRIVE_TO_UNLOAD_STATION
+        STATE_DRIVE_TO_UNLOAD_STATION,
+        STATE_DRIVE_TO_FIRST_LOAD_STATION,
+        STATE_POSITIONING,
+        STATE_EXPLORATION,
+        STATE_UNLOAD_CARGO
     };
 
     std::string getStateName(State _state)
@@ -639,16 +736,24 @@ private:
             return "STATE_START";
         case STATE_STOP:
             return "STATE_STOP";
-        case STATE_DRIVE_1m:
-            return "STATE_DRIVE_1m";
-        case STATE_DRIVE_TO_GOAL:
-            return "STATE_DRIVE_TO_GOAL";
-        case STATE_LOAD_HOLZKLOTZ:
-            return "STATE_LOAD_HOLZKLOTZ";
+//        case STATE_DRIVE_1m:
+//            return "STATE_DRIVE_1m";
+        case STATE_DRIVE_TO_FIRST_LOAD_STATION:
+            return "STATE_DRIVE_TO_FIRST_LOAD_STATION";
+        case STATE_DRIVE_TO_LOAD_STATION:
+            return "STATE_DRIVE_TO_LOAD_STATION";
+        case STATE_LOAD_CARGO:
+            return "STATE_LOAD_CARGO";
         case STATE_FIND_UNLOAD_STATION:
             return "STATE_FIND_UNLOAD_STATION";
         case STATE_DRIVE_TO_UNLOAD_STATION:
             return "STATE_DRIVE_TO_UNLOAD_STATION";
+        case STATE_POSITIONING:
+        return "STATE_POSITIONING";
+        case STATE_EXPLORATION:
+            return "STATE_EXPLORATION";
+        case STATE_UNLOAD_CARGO:
+            return "STATE_UNLOAD_CARGO";
         default:
             return "undefined state";
         };
