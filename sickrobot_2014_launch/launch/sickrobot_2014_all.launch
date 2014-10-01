@@ -7,7 +7,11 @@
     <include file="$(find sickrobot_2014_control)/launch/sick_robot_2014_behavior.launch" />
 
 
-    <include file="$(find hector_object_tracker)/launch/object_tracker_turtlebot.launch" />
+    <include file="$(find hector_object_tracker)/launch/object_tracker_sick_robot_day_2014.launch" />
+    
+    <node pkg="hector_map_server" type="hector_map_server" name="hector_map_server" output="screen" respawn="true">
+    </node>
+
     
     <!--
     We don´t need octomap, so don´t use it for now (SK)
