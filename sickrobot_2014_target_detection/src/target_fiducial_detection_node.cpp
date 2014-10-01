@@ -163,8 +163,8 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
 
         percept.x      = center.x;
         percept.y      = center.y;
-        percept.width  = 2 * radius;
-        percept.height = 2 * radius;
+        percept.width  = 2.0 * radius;
+        percept.height = 2.0 * radius;
         percept_publisher_.publish(percept);
       }
 
@@ -192,7 +192,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
 
 int main(int argc, char **argv)
 {
-    debug_ = false;
+    debug_ = true;
 
     ros::init(argc, argv, "target_detection");
     ros::NodeHandle nh;
@@ -203,7 +203,7 @@ int main(int argc, char **argv)
     image_transport::ImageTransport it(nh);
 
     //image_transport::TransportHints hints("raw", ros::TransportHints(), getPrivateNodeHandle());
-    image_transport::CameraSubscriber sub_camera_ = it.subscribeCamera("/camera/rgb", 3, imageCallback);
+    image_transport::CameraSubscriber sub_camera_ = it.subscribeCamera("camera", 3, imageCallback);
 
 
 
