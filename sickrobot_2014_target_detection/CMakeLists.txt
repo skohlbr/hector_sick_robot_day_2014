@@ -8,6 +8,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   image_transport
   cv_bridge
+  hector_worldmodel_msgs
 )
 
 find_package(OpenCV REQUIRED)
@@ -84,7 +85,7 @@ find_package(OpenCV REQUIRED)
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES sickrobot_2014_target_detection
-CATKIN_DEPENDS roscpp sensor_msgs cv_bridge std_msgs image_transport
+CATKIN_DEPENDS roscpp sensor_msgs cv_bridge std_msgs image_transport hector_worldmodel_msgs
 #  DEPENDS system_lib
 )
 

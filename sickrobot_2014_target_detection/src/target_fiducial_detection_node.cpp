@@ -5,10 +5,13 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
+#include <hector_worldmodel_msgs/ImagePercept.h>
+
 #include <vector>
 
 cv::Mat templ;
 bool debug_;
+ros::Publisher percept_publisher_;
 
 void matchCircles(cv::Mat &image_gray, std::vector<cv::Vec3f> &circles){
     cv::HoughCircles( image_gray, circles, CV_HOUGH_GRADIENT, 1, 10); // Apply the Hough Transform to find the circles
@@ -108,7 +111,7 @@ void matchTemplate(cv::Mat &img, cv::Mat &result, int match_method){
 }
 
 
-void imageCallback(const sensor_msgs::ImageConstPtr& msg)
+void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::CameraInfoConstPtr& info_msg)
 {
     cv_bridge::CvImageConstPtr cv_ptr;
     try
@@ -141,6 +144,33 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg)
     filterLines(lines);
 
 
+    // @TODO: Using just circle detections for demo purposes, do
+    // something more intelligent.
+    if (circles.size() > 0){
+      // extract results
+      for (size_t i = 0; i < circles.size(); ++i){
+        hector_worldmodel_msgs::ImagePercept percept;
+        percept.header = msg->header;
+        percept.camera_info = *info_msg;
+        percept.info.class_id = "target_fiducial";
+        percept.info.class_support = 1.0;
+
+        percept.info.object_support = 1.0;
+        percept.info.name = "bla";
+
+        cv::Point center(cvRound(circles[i][0]), cvRound(circles[i][1]));
+        int radius = cvRound(circles[i][2]);
+
+        percept.x      = center.x;
+        percept.y      = center.y;
+        percept.width  = 2 * radius;
+        percept.height = 2 * radius;
+        percept_publisher_.publish(percept);
+      }
+
+    }
+
+
     /*
      std::vector<cv::Vec4i> linesProb;
     matchLinesProbabilistic(image_gray, linesProb);
@@ -166,8 +196,19 @@ int main(int argc, char **argv)
 
     ros::init(argc, argv, "target_detection");
     ros::NodeHandle nh;
+
+    percept_publisher_ = nh.advertise<hector_worldmodel_msgs::ImagePercept>("image_percept", 10);
+
+
     image_transport::ImageTransport it(nh);
-    image_transport::Subscriber sub = it.subscribe("/camera/rgb/image_raw", 1, imageCallback);
+
+    //image_transport::TransportHints hints("raw", ros::TransportHints(), getPrivateNodeHandle());
+    image_transport::CameraSubscriber sub_camera_ = it.subscribeCamera("/camera/rgb", 3, imageCallback);
+
+
+
+
+    //image_transport::Subscriber sub = it.subscribe("/camera/rgb/image_raw", 1, imageCallback);
 
     if (debug_){
       cv::namedWindow("Circles");
