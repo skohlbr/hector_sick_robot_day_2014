@@ -158,8 +158,8 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
         percept.info.object_support = 1.0;
         percept.info.name = "bla";
 
-        cv::Point center(cvRound(circles[i][0]), cvRound(circles[i][1]));
-        int radius = cvRound(circles[i][2]);
+        cv::Point2d center(circles[i][0], circles[i][1]);
+        double radius = (circles[i][2]);
 
         percept.x      = center.x;
         percept.y      = center.y;
