@@ -1,0 +1,6 @@
+# used to control led
+
+# true: on, false: off
+bool state
+
+---
