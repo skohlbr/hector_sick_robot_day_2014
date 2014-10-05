@@ -10,6 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   tf
 sickrobot_2014_msgs
+hector_nav_msgs
   
  
 )
@@ -89,7 +90,7 @@ add_definitions(${EIGEN_DEFINITIONS})
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES robcom
-  CATKIN_DEPENDS roscpp sickrobot_2014_msgs
+  CATKIN_DEPENDS roscpp sickrobot_2014_msgs hector_nav_msgs
 #  DEPENDS system_lib
 )
 

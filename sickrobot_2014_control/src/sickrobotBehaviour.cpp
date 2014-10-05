@@ -6,6 +6,7 @@
 #include <hector_worldmodel_msgs/AddObject.h>
 #include <hector_worldmodel_msgs/GetObjectModel.h>
 #include "std_msgs/Float64.h"
+#include "std_msgs/Float32.h"
 #include "std_msgs/Int32.h"
 #include "std_msgs/String.h"
 #include <sickrobot_2014_msgs/StartMission.h>
@@ -31,15 +32,22 @@
 
 //#include <dynamixel_msgs/JointState.h>
 #include <sensor_msgs/JointState.h>
-
+#include <visualization_msgs/MarkerArray.h>
 #include <vector>
+
+#include <hector_nav_msgs/GetDistanceToObstacle.h>
 
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
 
 class sickrobot_behaviour {
 public:
+
     sickrobot_behaviour()
     {
+         struct Vector2D{
+            float x;
+            float y;
+        };
         // instantiate publisher and subscriber
         ros::NodeHandle worldmodel(std::string("worldmodel"));
         worldmodel_AddObject = worldmodel.serviceClient<hector_worldmodel_msgs::AddObject>("add_object");
@@ -49,12 +57,17 @@ public:
         messagePublisher = root.advertise<std_msgs::String>("sickrobot/print", 10, false);
 
         holzklotzSubscriber = root.subscribe<std_msgs::Int32>("holzklotz_number", 10, &sickrobot_behaviour::holzklotzCb, this);
-
-        //modelSubscriber = worldmodel.subscribe("objects", 10, &sickrobot_behaviour::objectsCb, this);
+        //worldmodel_objects_sub = root.subscribe<std_msgs::Int32>("holzklotz_number", 10, &sickrobot_behaviour::holzklotzCb, this);
+        modelSubscriber = worldmodel.subscribe("objects", 10, &sickrobot_behaviour::objectsCb, this);
 
 
         ros::NodeHandle sick_nh(std::string("sickrobot"));
         startMission = sick_nh.advertiseService("start_mission", &sickrobot_behaviour::startMissionCb, this);
+        m_marker_points = sick_nh.advertise<visualization_msgs::MarkerArray>("endpoints", 1, false);
+        m_marker_normal = sick_nh.advertise<visualization_msgs::MarkerArray>("normal", 1, false);
+
+        getDist_client = root.serviceClient<hector_nav_msgs::GetDistanceToObstacle>("hector_map_server/get_distance_to_obstacle");
+
         //    executeState = sick_nh.advertiseService("execute_state", &sickrobot_behaviour::executeStateCb, this);
 
 
@@ -122,7 +135,7 @@ public:
                 ROS_INFO("do nothing");
             } //else if (_state == STATE_DRIVE_1m){
             else{
-                ROS_INFO("do something if STATE_DRIVE_1m");
+              //  ROS_INFO("do something");
                 //ROS_INFO("run1: went into the state request for finding target balls");
                 //          if (getNearestBall()){
                 //            ROS_DEBUG("run1: Send mbClient command to cancel all Goals");
@@ -173,7 +186,7 @@ protected:
                 break;
             case STATE_DRIVE_TO_FIRST_LOAD_STATION:
                 drive_to_frist_load_station_task();
-
+                break;
             case STATE_POSITIONING:
                 positioning_task();
             case STATE_LOAD_CARGO:
@@ -250,21 +263,96 @@ protected:
 
     void drive_to_frist_load_station_task(){
         //drive straight until first goal station is seen, then drive towards it till certain distance threshold
+        //TODO make an adaptive step control ( if not possible to plan through wall etc)
+        ROS_INFO("state: driving to first load station");
+                while (_number_objects==0){
+                geometry_msgs::Point my_pos;
+                float                my_yaw;
+
+                getCurrentPosition(&my_pos, &my_yaw);
+
+                std::cout << "pos x:" <<my_pos.x << "   pos_y:"<<my_pos.y << "   my pos z:" <<my_pos.z<<   "yaw  " <<my_yaw <<std::endl;
+                move_base_msgs::MoveBaseGoal goal;
+                goal.target_pose.header.frame_id = "map";
+                goal.target_pose.header.stamp = ros::Time::now();
+
+                goal.target_pose.pose.position.x = my_pos.x+1*cos(my_yaw);
+                goal.target_pose.pose.position.y = my_pos.y+1*sin(my_yaw);
+                goal.target_pose.pose.position.z = my_pos.z;
+                goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(my_yaw);
+
+                //_state = STATE_DRIVE_TO_GOAL;
+               // driveToGoal(goal);
+
+                ROS_INFO("Sending goal");
+                           mbClient->sendGoal(goal);
+
+                           mbClient->waitForResult();
+
+                           if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+                               ROS_INFO("Great we reached the goal");
+
+                              // setState(STATE_STOP);
+                              // return;
+                           }
+
+                           else {
+                               ROS_INFO("That was bad, we didn't reach our goal");
+                           }
+
+              }
+                current_target = objects->objects[0];
         _state = STATE_POSITIONING;
     }
 
     void positioning_task(){
         // try to reach a good position under the ring
-        bool good_position=false;
-        while (!good_position){
-            //try to find one, maybe reapproaching instead of finetuning need to save the best approaching point for next time we want to reach this goal
-        }
+        ROS_INFO("state: positioning");
+        geometry_msgs::PointStamped point;
+        point.point=current_target.pose.pose.position;
+        point.header.frame_id=current_target.header.frame_id;
+        point.header.stamp=current_target.header.stamp;
+        float normal_slope_x;
+        float normal_slope_y;
+        getNormal(point,normal_slope_x,normal_slope_y);
 
-        if (!_has_cargo){
-        _state=STATE_LOAD_CARGO;}
-        else {
-            _state=STATE_UNLOAD_CARGO;
-        }
+        geometry_msgs::Point my_pos;
+        float                my_yaw;
+
+        getCurrentPosition(&my_pos, &my_yaw);
+        move_base_msgs::MoveBaseGoal goal;
+        goal.target_pose.header.frame_id = "map";
+        goal.target_pose.header.stamp = ros::Time::now();
+
+        goal.target_pose.pose.position.x = current_target.pose.pose.position.x+0.25*normal_slope_x;
+        goal.target_pose.pose.position.y = current_target.pose.pose.position.y+0.25*normal_slope_y;
+        goal.target_pose.pose.position.z = my_pos.z;
+        std::cout<< " yaw for position " <<(atan2(normal_slope_y,normal_slope_x)/M_PI)*180<<std::endl;
+        goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(atan2(normal_slope_y,normal_slope_x));
+
+        ROS_INFO("Sending goal");
+                   mbClient->sendGoal(goal);
+
+                   mbClient->waitForResult();
+
+                   if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+                       ROS_INFO("Great we reached the goal");
+
+                       if (!_has_cargo){
+                       _state=STATE_LOAD_CARGO;}
+                       else {
+                           _state=STATE_UNLOAD_CARGO;
+                       }
+                      // return;
+                   }
+
+                   else {
+                       ROS_INFO("That was bad, we didn't reach our goal");
+                   }
+
+
+
+
 
     }
 
@@ -676,6 +764,213 @@ protected:
         }
     }
 
+    void getNormal(geometry_msgs::PointStamped point,float &normal_slope_x,float &normal_slope_y){
+        geometry_msgs::Point my_pos;
+        float                my_yaw;
+
+        getCurrentPosition(&my_pos, &my_yaw);
+
+        hector_nav_msgs::GetDistanceToObstacle getDist_srv;
+
+
+        std::vector<float> distances;
+        std::vector<geometry_msgs::Point> end_points;
+        std::vector<geometry_msgs::Point> directions;
+        geometry_msgs::PointStamped direction=point;
+        tf::Point pointTF;
+        tf::Point directionTF;
+        geometry_msgs::Point end_point;
+
+        for (int i=0;i<5;i++){
+        getDist_srv.request.point=direction;
+        getDist_srv.request.point.header.stamp = ros::Time::now();
+        getDist_srv.request.point.header.frame_id="base_link";
+
+        getDist_client.call(getDist_srv);
+        float dis=getDist_srv.response.distance;
+        distances.push_back(dis);
+        if (i==0){
+        direction.point.x=direction.point.x+0.5;}
+        else if (i==1){
+        direction.point.x=direction.point.x-1.0;
+        }
+        else if (i==2){
+        direction.point.x=direction.point.x+0.5;
+        direction.point.y=direction.point.y+0.5;
+        }
+        else if (i==3){
+        direction.point.y=direction.point.y-1.0;
+        }
+
+
+       float diffx= direction.point.x-my_pos.x;
+       float diffy= direction.point.y-my_pos.y;
+
+       float norm_factor=sqrt(diffx*diffx+diffy*diffy);
+
+       float norm_x=diffx*(1/norm_factor);
+       float norm_y=diffy*(1/norm_factor);
+
+       end_point.x=my_pos.x+dis*norm_x;
+       end_point.y=my_pos.y+dis*norm_y;
+       end_point.z=point.point.z;
+
+        end_points.push_back(end_point);
+        directions.push_back(direction.point);
+
+
+        }
+
+        if (m_marker_points.getNumSubscribers() > 0  ){
+
+            visualization_msgs::MarkerArray marker_array;
+
+            visualization_msgs::Marker marker;
+            marker.header.stamp = point.header.stamp;
+            marker.header.frame_id = point.header.frame_id;
+            marker.type = visualization_msgs::Marker::POINTS;
+            marker.action = visualization_msgs::Marker::ADD;
+            marker.color.r= 1.0;
+            marker.color.a = 1.0;
+            marker.scale.x = 0.05;
+            marker.scale.y = 0.05;
+            marker.scale.z = 0.05;
+            marker.ns ="";
+            marker.action = visualization_msgs::Marker::ADD;
+            marker.pose.orientation.w = 1.0;
+
+            std::vector<geometry_msgs::Point> point_vector;
+
+            for (size_t i = 0; i < end_points.size(); ++i){
+
+                point_vector.push_back(end_points[i]);
+            }
+
+            marker.points=point_vector;
+            marker_array.markers.push_back(marker);
+            m_marker_points.publish(marker_array);
+
+        }
+
+
+
+
+        std::vector<geometry_msgs::Point> regress_points;
+        for (int i=0;i<end_points.size();i++){
+            if(sqrt((point.point.x-end_points[i].x)*(point.point.x-end_points[i].x)+(point.point.y-end_points[i].y)*(point.point.y-end_points[i].y))<1){
+                regress_points.push_back(end_points[i]);
+        }
+        }
+
+        std::vector<geometry_msgs::Point> regress_points_no_duplicate_x;
+        for (int i=0;i<regress_points.size();i++){
+            bool duplicate=false;
+            for (int j=i+1;j<regress_points.size();j++){
+                if (abs(regress_points[i].x-regress_points[j].x)<0.1){
+                    duplicate=true;
+                    break;
+                }
+            }
+            if (!duplicate){
+                regress_points_no_duplicate_x.push_back(regress_points[i]);
+            }
+
+        }
+
+
+        float b;
+        if (regress_points_no_duplicate_x.size()>1){
+        // calculate the slope of the wall line
+        float sumx=0;
+        float sumy=0;
+        float sumxy=0;
+        float sumxx=0;
+        for (int i=0;i<regress_points_no_duplicate_x.size();i++){
+            sumx=sumx+regress_points_no_duplicate_x[i].x;
+            sumy=sumy+regress_points_no_duplicate_x[i].y;
+        }
+        float meanx=sumx/regress_points_no_duplicate_x.size();
+        float meany=sumy/regress_points_no_duplicate_x.size();
+
+        for (int i=0;i<regress_points_no_duplicate_x.size();i++){
+            sumxy=sumxy+(regress_points_no_duplicate_x[i].x-meanx)*(regress_points_no_duplicate_x[i].y-meany);
+            sumxx=sumxx+(regress_points_no_duplicate_x[i].x-meanx)*(regress_points_no_duplicate_x[i].x-meany);
+        }
+
+        float m=sumxy/sumxx;
+        b=meany-m*meanx;
+
+        // line is parallel to x-axis, need to treat this special
+        if (abs(m)<0.01){
+            b=meany-m*meanx;
+            normal_slope_x=0;
+
+            if (my_pos.y>point.point.y){
+            normal_slope_y=1;}
+            else{
+               normal_slope_y=-1;
+            }
+        }
+
+         else{
+        normal_slope_x=1;
+         normal_slope_y=-1/m; }
+         std::cout <<"m:" <<std::endl;
+         ROS_INFO_STREAM(m);
+
+        }
+
+        // line is parallel to y-axis need to treat this special
+        else{
+            if (my_pos.x>point.point.x){
+            normal_slope_x=1;}
+            else{
+                normal_slope_x=-1;
+            }
+            normal_slope_y=0;
+            b= regress_points_no_duplicate_x[0].y;
+
+        }
+std::cout <<"normal_slope_x:" <<std::endl;
+        ROS_INFO_STREAM(normal_slope_x);
+        std::cout <<"normal_slope_y:" <<std::endl;
+        ROS_INFO_STREAM(normal_slope_y);
+        std::cout <<"b:" <<std::endl;
+        ROS_INFO_STREAM(b);
+        if (m_marker_normal.getNumSubscribers() > 0  ){
+
+
+                visualization_msgs::MarkerArray marker_array;
+                visualization_msgs::Marker marker;
+                marker.header.stamp = point.header.stamp;
+                marker.header.frame_id = point.header.frame_id;
+                marker.type = visualization_msgs::Marker::LINE_LIST;
+                marker.action = visualization_msgs::Marker::ADD;
+                marker.color.r= 1.0;
+                marker.color.a = 1.0;
+                marker.scale.x = 0.02;
+                marker.ns ="";
+                marker.action = visualization_msgs::Marker::ADD;
+                marker.pose.orientation.w = 1.0;
+
+                std::vector<geometry_msgs::Point> point_vector;
+                geometry_msgs::Point p1;
+
+                    point_vector.push_back(point.point);
+                    p1.x=point.point.x+1*normal_slope_x;
+                    p1.y=point.point.y+1*normal_slope_y;
+                    p1.z=point.point.z;
+                    point_vector.push_back(p1);
+
+                marker.points=point_vector;
+                marker_array.markers.push_back(marker);
+                m_marker_normal.publish(marker_array);
+            }
+
+
+
+    }
+
     /*
   void getPose(const geometry_msgs::Pose& pose, const std::string& source_frame, const std::string& target_frame, geometry_msgs::Pose& pose_out){
 
@@ -690,13 +985,19 @@ private:
     ros::Publisher cmdVelPublisher;
     ros::Publisher messagePublisher;
 
+     ros::Publisher m_marker_points;
+     ros::Publisher m_marker_normal;
+
     ros::Subscriber modelSubscriber;
     ros::Subscriber ballInGrabberSubscriber;
 
     ros::Subscriber holzklotzSubscriber;
+    ros::Subscriber worldmodel_objects_sub;
 
     tf::TransformListener tf_listener;
 
+
+    ros::ServiceClient getDist_client;
     // class-id of the target balls
     std::string          _ball_color;
 
@@ -711,7 +1012,10 @@ private:
 
     bool _run;
     bool _has_cargo;
-
+    int _number_objects;
+    hector_worldmodel_msgs::ObjectModelConstPtr objects;
+   // std::string current_drive_target;
+    hector_worldmodel_msgs::Object current_target;
 
     enum State {
         STATE_IDLE,
@@ -799,11 +1103,12 @@ private:
 
 
     void objectsCb(const hector_worldmodel_msgs::ObjectModelConstPtr& objectModel)
-    {/*
-    int size = objectModel->get_objects_size();
-    ROS_DEBUG("in objects cb. Size: %d", size);
+    {
+    _number_objects = objectModel->objects.size();
+    objects=objectModel;
+    //ROS_INFO("in objects cb. Size: %d", _number_objects);
 
-    std::string          new_id;
+   /* std::string          new_id;
     float                new_dist = FLT_MAX;
     geometry_msgs::Point new_pos;
 
