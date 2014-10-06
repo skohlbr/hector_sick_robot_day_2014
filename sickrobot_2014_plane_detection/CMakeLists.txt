@@ -8,8 +8,11 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   pcl_ros
   sensor_msgs
+  cv_bridge
+  geometry_msgs
 )
 
+find_package(OpenCV REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -83,7 +86,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES sickrobot_2014_plane_detection
-   CATKIN_DEPENDS roscpp pcl_ros sensor_msgs
+   CATKIN_DEPENDS roscpp pcl_ros sensor_msgs cv_bridge geometry_msgs
 #  DEPENDS system_lib
 )
 
@@ -97,6 +100,7 @@ catkin_package(
 include_directories(
     ${catkin_INCLUDE_DIRS}
     ${PCL_INCLUDE_DIRS}
+    ${OpenCV_INCLUDE_DIRS}
 )
 
 
@@ -116,6 +120,7 @@ include_directories(
  target_link_libraries(sickrobot_2014_plane_detection_node
    ${catkin_LIBRARIES}
    ${PCL_LIBRARIES}
+   ${OpenCV_LIBRARIES}
  )
 
 
