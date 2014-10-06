@@ -39,11 +39,18 @@ string img_path;
 
 KNearest * knearest = NULL;
 
+const int train_samples = 1;
+const int classes = 10;
+const int sizex = 20;
+const int sizey = 30;
+const int ImageSize = sizex * sizey;
+char pathToImages[] = "images";
+
 void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::CameraInfoConstPtr& info_msg);
 void learnFromImages(CvMat* trainData, CvMat* trainClasses);
 void preProcessImage(Mat *inImage, Mat *outImage, int sizex, int sizey);
 void runSelfTest(KNearest& knn2);
-int analyseImage(Mat const & image, KNearest const & knearest);
+int analyseImage(Mat &image, KNearest &knearest);
 
 
 int main(int argc, char **argv)
@@ -56,12 +63,14 @@ int main(int argc, char **argv)
 
   digit_publisher_ = nh.advertise<hector_worldmodel_msgs::ImagePercept>("digit_percept", 10);
 
-  image_transport::ImageTransport it(nh);
-  image_transport::CameraSubscriber sub_camera_ = it.subscribeCamera("camera", 3, imageCallback);
+
 
   setupClassifier();
   std::cout << "END SETUP CLASSIFIER" << std::endl;
 
+  image_transport::ImageTransport it(nh);
+  //image_transport::CameraSubscriber sub_camera_ = it.subscribeCamera("camera", 3, imageCallback);
+  image_transport::CameraSubscriber sub_camera_ = it.subscribeCamera("/camera/rgb/image_raw", 3, imageCallback);
 
   //image_transport::Subscriber sub = it.subscribe("/camera/rgb/image_raw", 1, imageCallback);
 
@@ -109,15 +118,19 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
   }
 
   ROS_DEBUG("Image received");
-  Mat image, image_gray;
-  image = cv_ptr->image.clone();
+  Mat image_big, image, image_gray;
+  image_big = cv_ptr->image.clone();
+  cv::resize(image_big, image, Size(sizex, sizey));
+
   // image_circles = cv_ptr->image.clone();
   // image_lines = cv_ptr->image.clone();
   // image_template = cv_ptr->image.clone();
   // cv::cvtColor( cv_ptr->image, image_gray, CV_BGR2GRAY ); // Convert image to gray
   // cv::GaussianBlur( image_gray, image_gray, cv::Size(9, 9), 2, 2 ); // Reduce the noise so we avoid false circle detection
 
-  int digit = analyseImage(image_gray, *knearest);
+  ROS_INFO("BEGIN analyseImage");
+  int digit = analyseImage(image, *knearest);
+  ROS_INFO("END analyseImage");
 
   std::stringstream sstr;
   sstr << digit;
@@ -145,13 +158,6 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
   //analyseImage(knearest);
 
 }
-
-const int train_samples = 1;
-const int classes = 10;
-const int sizex = 20;
-const int sizey = 30;
-const int ImageSize = sizex * sizey;
-char pathToImages[] = "images";
 
 void setupClassifier()
 {
@@ -198,7 +204,16 @@ void preProcessImage(Mat *inImage,Mat *outImage, int sizex, int sizey)
 {
   Mat grayImage,blurredImage,thresholdImage,contourImage,regionOfInterest;
   vector<vector<Point> > contours;
-  cvtColor(*inImage,grayImage , COLOR_BGR2GRAY);
+  if(inImage->empty())
+  {
+    ROS_INFO("preProcessImage: Sorry, no data!");
+    exit(1);
+  }
+  else if(inImage->channels() > 1)
+    cvtColor(*inImage, grayImage , COLOR_BGR2GRAY);
+  else
+    grayImage = *inImage;
+
 
   GaussianBlur(grayImage, blurredImage, Size(5, 5), 2, 2);
   adaptiveThreshold(blurredImage, thresholdImage, 255, 1, 1, 11, 2);
@@ -251,29 +266,52 @@ void runSelfTest(KNearest& knn2)
     }
     // imshow("single", img);
     // waitKey(0);
-  }
+  }  ROS_INFO("END imageCallback");
+
 }
 
-int analyseImage(Mat const & image, KNearest const & knearest)
+int analyseImage(Mat & image, KNearest & knearest)
 {
   int imgSize = image.size().height * image.size().width;
+  std::cout << imgSize << std::endl;
+
+  ROS_INFO("READY 2 EXECUTE cvCreateMat");
+
+
   CvMat* sample2 = cvCreateMat(1, imgSize, CV_32FC1);
   Mat gray, blur, thresh;
   // vector < vector<Point> > contours;
 
-  cvtColor(image, gray, COLOR_BGR2GRAY);
+  ROS_INFO("READY 2 EXECUTE cvtColor");
+  if(image.empty())
+  {
+    ROS_INFO("analyseImage: Sorry, no data!");
+    exit(1);
+  }
+  else if(image.channels() > 1)
+    cvtColor(image, gray, COLOR_BGR2GRAY);
+  else
+    gray = image;
   GaussianBlur(gray, blur, Size(5, 5), 2, 2);
   adaptiveThreshold(blur, thresh, 255, 1, 1, 11, 2);
   // findContours(thresh, contours, RETR_LIST, CHAIN_APPROX_SIMPLE);
 
+  ROS_INFO("READY 2 EXECUTE preProcessImage");
+
   float result;
   Mat stagedImage;
-  preProcessImage(&thresh, &stagedImage, sizex, sizey);
+  preProcessImage(&thresh, &stagedImage, image.size().width,  image.size().height);
   for (int n = 0; n < imgSize; n++)
   {
     sample2->data.fl[n] = stagedImage.data[n];
   }
+
+  ROS_INFO("READY 2 EXECUTE find_nearest");
+
   result = knearest.find_nearest(sample2, 1);
+
+  ROS_INFO("RESULT = %f", result);
+
 
   // rectangle(image, Point(rec.x, rec.y),
   //          Point(rec.x + rec.width, rec.y + rec.height),
@@ -315,5 +353,5 @@ int analyseImage(Mat const & image, KNearest const & knearest)
 
   }*/
 
-  return result;
+  return (int)((result));
 }
