@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="base"       default="$(optenv TURTLEBOT_BASE rhoomba)"/>  <!-- create, rhoomba -->
+  <arg name="port"       default="$(optenv TURTLEBOT_PORT /dev/ttyUSB1)"/>
+  <arg name="battery"    default="$(optenv TURTLEBOT_BATTERY /proc/acpi/battery/BAT1)"/>  <!-- /proc/acpi/battery/BAT0 in 2.6 or earlier kernels-->
+  <arg name="stacks"     default="$(optenv TURTLEBOT_STACKS circles)"/>  <!-- circles, hexagons -->
+  <arg name="3d_sensor"  default="$(optenv TURTLEBOT_3D_SENSOR kinect)"/>  <!-- kinect, asus_xtion_pro -->
+  <arg name="simulation" default="$(optenv TURTLEBOT_SIMULATION false)"/>
+
+
+  <param name="robot/name" value="$(optenv ROBOT turtlebot)"/>
+  <param name="robot/type" value="turtlebot"/>
+
+  <!-- Robot Description -->
+  <arg name="urdf_file" default="$(find xacro)/xacro.py '$(find hector_turtlebot_description)/urdf/turtlebot_sick_setup.xacro'" />
+  <param name="robot_description" command="$(arg urdf_file)" />
+
+  <!-- Robot state publisher -->
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher">
+    <param name="publish_frequency" type="double" value="5.0" />
+  </node>
+
+  <!-- Robot diagnostics -->
+  <!--
+  <node pkg="diagnostic_aggregator" type="aggregator_node" name="diagnostic_aggregator" >
+    <rosparam command="load" file="$(find turtlebot_bringup)/param/$(arg base)/diagnostics.yaml" />
+  </node>
+  -->
+
+    <!-- Turtlebot Driver -->
+  <node pkg="create_node" type="turtlebot_node.py" name="turtlebot_node" respawn="true" args="--respawnable">
+    <param name="port" value="$(arg port)" />
+    <param name="robot_type" value="roomba" />
+    <param name="has_gyro" value="false" />
+    <param name="bonus" value="false" />
+    <param name="update_rate" value="30.0" />
+    <remap from="cmd_vel" to="mobile_base/commands/velocity" />
+    <remap from="turtlebot_node/sensor_state" to="mobile_base/sensors/core" />
+    <remap from="imu/data" to="mobile_base/sensors/imu_data" />
+    <remap from="imu/raw" to="mobile_base/sensors/imu_data_raw" />
+  </node>
+
+  <!-- Enable breaker 1 for the kinect -->
+  <!--node pkg="create_node" type="kinect_breaker_enabler.py" name="kinect_breaker_enabler"/-->
+
+  <!-- The odometry estimator -->
+
+  <node pkg="robot_pose_ekf" type="robot_pose_ekf" name="robot_pose_ekf">
+    <remap from="imu_data" to="imu/data"/>
+    <param name="freq" value="10.0"/>
+    <param name="sensor_timeout" value="1.0"/>
+    <param name="publish_tf" value="true"/>
+    <param name="odom_used" value="true"/>
+    <param name="imu_used" value="true"/>
+    <param name="vo_used" value="false"/>
+    <param name="output_frame" value="odom"/>
+  </node>
+
+  <!-- velocity commands multiplexer -->
+
+  <node pkg="nodelet" type="nodelet" name="mobile_base_nodelet_manager" args="manager"/>
+  <node pkg="nodelet" type="nodelet" name="cmd_vel_mux" args="load yocs_cmd_vel_mux/CmdVelMuxNodelet mobile_base_nodelet_manager">
+    <param name="yaml_cfg_file" value="$(find turtlebot_bringup)/param/mux.yaml"/>
+    <remap from="cmd_vel_mux/output" to="mobile_base/commands/velocity"/>
+  </node>
+
+  <!--
+  <include file="$(find turtlebot_bringup)/launch/includes/netbook.launch.xml">
+    <arg name="battery" value="$(arg battery)" />
+  </include>
+  -->
+
+</launch>
