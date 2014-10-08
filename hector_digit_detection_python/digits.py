@@ -58,7 +58,7 @@ def load_print_digits(fp):
 			digit_img2 = cv2.bitwise_not(digit_img)
 			digits.append(digit_img2)
 	return digits, labels
-			
+
 
 def split2d(img, cell_size, flatten=True):
     h, w = img.shape[:2]
@@ -191,12 +191,12 @@ def imageCallback(svmmodel,data):
 
         image_np = cv_image
 
-        #image_np = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+        image_np = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
         image_np2 = cv2.bitwise_not(image_np)
 	image_np3 = cv2.adaptiveThreshold(image_np2, 255, 1, 1, 11, 2)
 	image_np4 = image_np3
         contours, hierarchy = cv2.findContours(image_np4, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-		
+
         values = []
 
 	for cnt in contours:
@@ -205,10 +205,10 @@ def imageCallback(svmmodel,data):
 			if h > 50 and w > 30:
 				cv2.rectangle(image_np, (x,y), (x+w, y+h), (0,255,0), 2)
 				hi,wi = image_np.shape[:2]
-				#print '%d %d | %d %d at size %d %d' % (x, x+w, y, y+w,wi,hi) 
+				#print '%d %d | %d %d at size %d %d' % (x, x+w, y, y+w,wi,hi)
 				#cv2.imshow('test', image_np)
 				#cv2.waitKey(0)
-				
+
 
 				roi = image_np2[y:y+h,x:x+w]
 				#roi = cv2.bitwise_not(roi)
@@ -220,9 +220,9 @@ def imageCallback(svmmodel,data):
 				resp = model.predict(samples)
 				print resp
                                 values.append(resp)
-				
+
 				#cv2.imshow('all', roi)
-				#cv2.imshow('single', digit2)	
+				#cv2.imshow('single', digit2)
 				#cv2.waitKey(0)
 
         return values[0], 0.0
@@ -247,7 +247,7 @@ if __name__ == '__main__':
 
                 #digits2 = map(deskew, digits)
                 #samples = preprocess_hog(digits2)
-	
+
                 #train_n = int(0.9*len(samples))
                 #cv2.imshow('test set', mosaic(25, digits[train_n:]))
                 #digits_train, digits_test = np.split(digits2, [train_n])
@@ -282,7 +282,7 @@ if __name__ == '__main__':
 
                 print 'training SVM ...'
 		model.train(samples, labels)
-		
+
 		bound_svmmodel_2_imageCallback = partial(imageCallback, model)
 
                 # rospy.Subscriber("/camera/rgb/image_raw/compressed", CompressedImage, bound_svmmodel_2_imageCallback, queue_size = 1)
@@ -294,4 +294,3 @@ if __name__ == '__main__':
 		rospy.spin()
 
 	except rospy.ROSInterruptException: pass
-
