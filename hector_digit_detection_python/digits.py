@@ -45,12 +45,12 @@ SZ = 20 # size of each digit is SZ x SZ
 CLASS_N = 10
 DIGITS_FN = 'data/digits.png'
 
-def load_print_digits():
+def load_print_digits(fp):
 	labels = np.repeat(np.arange(9), 9) + 1
 	digits = []
 	for i in range(1,10):
 		for j in range(0,9):
-			digit_img = cv2.imread('data/%d_%d.jpg' % (i,j) , 0)
+                        digit_img = cv2.imread('%s/%d_%d.jpg' % (fp,i,j) , 0)
 			digit_img2 = cv2.bitwise_not(digit_img)
 			digits.append(digit_img2)
 	return digits, labels
@@ -240,16 +240,22 @@ if __name__ == '__main__':
                 #model.save('digits_svm.dat')
                 #cv2.waitKey(0)
 
-                print 'training SVM ...'
-		digits, labels = load_print_digits()
+                rospy.init_node('digit_detection_python', anonymous=True)
+
+                fp = rospy.get_param('~img_path')
+                print fp
+
+                print 'loading Data ...'
+                digits, labels = load_print_digits(fp)
 		digits2 = map(deskew, digits)
 		samples = preprocess_hog(digits2)
 		model = SVM(C=2.67, gamma=5.383)
+
+                print 'training SVM ...'
 		model.train(samples, labels)
 		
 		bound_svmmodel_2_imageCallback = partial(imageCallback, model)
 
-		rospy.init_node('digit_detection_python', anonymous=True)
                 # rospy.Subscriber("/camera/rgb/image_raw/compressed", CompressedImage, bound_svmmodel_2_imageCallback, queue_size = 1)
 
 		bound_svmmodel_2_image2digit_service = partial(image2digit_service, model)

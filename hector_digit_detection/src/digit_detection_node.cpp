@@ -22,6 +22,7 @@ using cv::Point;
 using cv::Rect;
 using cv::RETR_LIST;
 using cv::Size;
+using cv::Scalar;
 using cv::waitKey;
 
 using std::string;
@@ -33,7 +34,7 @@ bool debug_;
 
 CvMat* trainData;
 CvMat* trainClasses;
-void setupClassifier();
+void setup_classifier();
 
 string img_path;
 
@@ -65,7 +66,7 @@ int main(int argc, char **argv)
 
 
 
-  setupClassifier();
+  setup_classifier();
   std::cout << "END SETUP CLASSIFIER" << std::endl;
 
   image_transport::ImageTransport it(nh);
@@ -120,7 +121,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
   ROS_DEBUG("Image received");
   Mat image_big, image, image_gray;
   image_big = cv_ptr->image.clone();
-  cv::resize(image_big, image, Size(sizex, sizey));
+  // cv::resize(image_big, image, Size(sizex, sizey));
 
   // image_circles = cv_ptr->image.clone();
   // image_lines = cv_ptr->image.clone();
@@ -129,7 +130,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
   // cv::GaussianBlur( image_gray, image_gray, cv::Size(9, 9), 2, 2 ); // Reduce the noise so we avoid false circle detection
 
   ROS_INFO("BEGIN analyseImage");
-  int digit = analyseImage(image, *knearest);
+  int digit = analyseImage(image_big, *knearest);
   ROS_INFO("END analyseImage");
 
   std::stringstream sstr;
@@ -159,7 +160,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
 
 }
 
-void setupClassifier()
+void setup_classifier()
 {
   CvMat* trainData = cvCreateMat(classes * train_samples,ImageSize, CV_32FC1);
   CvMat* trainClasses = cvCreateMat(classes * train_samples, 1, CV_32FC1);
@@ -273,14 +274,11 @@ void runSelfTest(KNearest& knn2)
 int analyseImage(Mat & image, KNearest & knearest)
 {
   int imgSize = image.size().height * image.size().width;
-  std::cout << imgSize << std::endl;
 
   ROS_INFO("READY 2 EXECUTE cvCreateMat");
-
-
-  CvMat* sample2 = cvCreateMat(1, imgSize, CV_32FC1);
+  CvMat* sample2 = cvCreateMat(1, ImageSize, CV_32FC1);
   Mat gray, blur, thresh;
-  // vector < vector<Point> > contours;
+  vector < vector<Point> > contours;
 
   ROS_INFO("READY 2 EXECUTE cvtColor");
   if(image.empty())
@@ -294,14 +292,14 @@ int analyseImage(Mat & image, KNearest & knearest)
     gray = image;
   GaussianBlur(gray, blur, Size(5, 5), 2, 2);
   adaptiveThreshold(blur, thresh, 255, 1, 1, 11, 2);
-  // findContours(thresh, contours, RETR_LIST, CHAIN_APPROX_SIMPLE);
+  findContours(thresh, contours, RETR_LIST, CHAIN_APPROX_SIMPLE);
 
   ROS_INFO("READY 2 EXECUTE preProcessImage");
 
   float result;
   Mat stagedImage;
-  preProcessImage(&thresh, &stagedImage, image.size().width,  image.size().height);
-  for (int n = 0; n < imgSize; n++)
+  preProcessImage(&thresh, &stagedImage, sizex, sizey);
+  for (int n = 0; n < ImageSize; n++)
   {
     sample2->data.fl[n] = stagedImage.data[n];
   }
@@ -321,8 +319,8 @@ int analyseImage(Mat & image, KNearest & knearest)
   // imshow("single", stagedImage);
   // waitKey(0);
 
-
-  /*for (size_t i = 0; i < contours.size(); i++)
+  float result2;
+  for (size_t i = 0; i < contours.size(); i++)
   {
     vector < Point > cnt = contours[i];
     if (contourArea(cnt) > 50)
@@ -332,18 +330,19 @@ int analyseImage(Mat & image, KNearest & knearest)
       {
         Mat roi = image(rec);
         Mat stagedImage;
-        PreProcessImage(&roi, &stagedImage, sizex, sizey);
+        preProcessImage(&roi, &stagedImage, sizex, sizey);
         for (int n = 0; n < ImageSize; n++)
         {
           sample2->data.fl[n] = stagedImage.data[n];
         }
-        result = knearest.find_nearest(sample2, 1);
+        result2 = knearest.find_nearest(sample2, 1);
         rectangle(image, Point(rec.x, rec.y),
                   Point(rec.x + rec.width, rec.y + rec.height),
                   Scalar(0, 0, 255), 2);
 
         imshow("all", image);
-        cout << result << "\n";
+        std::cout << "RES2 = " << result2 << "\n";
+
 
         imshow("single", stagedImage);
         waitKey(0);
@@ -351,7 +350,7 @@ int analyseImage(Mat & image, KNearest & knearest)
 
     }
 
-  }*/
+  }
 
   return (int)((result));
 }
