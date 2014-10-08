@@ -43,17 +43,17 @@
 
 #include <hector_digit_detection_msgs/Image2Digit.h>
 
+#include <hector_worldmodel_msgs/PosePercept.h>
+
 
 typedef pcl::PointXYZ PointT;
 
+ros::Publisher image_pub;
 ros::Publisher plane_pub;
 ros::Publisher poly_pub;
+ros::Publisher percept_publisher_;
 tf::TransformListener* listener;
 ros::ServiceClient digit_service;
-
-
-sensor_msgs::CameraInfoConstPtr last_info;
-
 
 void filterDepth(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud){
     pcl::PointCloud<PointT>::Ptr cloud_filtered (new pcl::PointCloud<PointT>);
@@ -139,8 +139,6 @@ bool segmentDigitPlane(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, boos
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);
 
     if  (cluster_indices.size() > 0){
-        //for (std::vector<int>::const_iterator pit = it->indices.begin (); pit != it->indices.end (); pit++)
-        //  cloud_cluster->points.push_back (cloud_filtered->points[*pit]); //*
         pcl::PointIndices& indices = cluster_indices[0];
 
         size_t size = indices.indices.size();
@@ -364,21 +362,38 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
     hector_digit_detection_msgs::Image2Digit image2digit;
 
     cv_bridge::CvImage out_msg;
-    out_msg.header   = image_msg->header; // Same timestamp and tf frame as input image
-    out_msg.encoding = image_msg->encoding; // Or whatever
+    out_msg.header   = image_msg->header;
+    out_msg.encoding = image_msg->encoding;
     out_msg.image    = img;
 
     out_msg.toImageMsg(image2digit.request.data);
 
-    if(digit_service.call(image2digit)){
+    sensor_msgs::Image new_msg;
 
+    out_msg.toImageMsg(new_msg);
+
+    image_pub.publish(new_msg);
+
+    if(digit_service.call(image2digit)){
         ROS_INFO("Number found: %d", image2digit.response.digit);
+        hector_worldmodel_msgs::PosePercept percept;
+        percept.header = pc_msg->header;
+        percept.info.class_id = "unload_fiducial";
+        percept.info.class_support = 1.0;
+
+        percept.info.object_support = 1.0;
+        percept.info.name = "bla";
+
+        percept.pose.pose.position.x = plane_rect[0].x();
+        percept.pose.pose.position.y = plane_rect[0].y();
+        percept.pose.pose.position.z = plane_rect[0].z();
+
+        //percept.pose.pose.orientation = Quaternion(0,0,0,1);
+        percept_publisher_.publish(percept);
+
     }else{
         ROS_ERROR("Service call failed");
     }
-
-    cv::imshow("view", img);
-    cv::waitKey(3);
 }
 
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::CameraInfo, sensor_msgs::PointCloud2> ApproximateTimeSyncPolicy;
@@ -395,8 +410,10 @@ int main(int argc, char** argv)
     tf::TransformListener l;
     listener = &l;
 
+    image_pub = nh_.advertise<sensor_msgs::Image>("/plane_image",1);
     poly_pub = nh_.advertise<geometry_msgs::PolygonStamped>("/digit_plane_poly",1);
     plane_pub = nh_.advertise<sensor_msgs::PointCloud2>("/plane", 1);
+    percept_publisher_ = nh_.advertise<hector_worldmodel_msgs::PosePercept>("pose_percept", 1);
 
     image_transport::SubscriberFilter image_sub;
     message_filters::Subscriber<sensor_msgs::CameraInfo> info_sub;
@@ -410,11 +427,7 @@ int main(int argc, char** argv)
 
     digit_service = nh_.serviceClient<hector_digit_detection_msgs::Image2Digit>("image2digit");
 
-    cv::namedWindow("view");
-
     ros::spin();
-
-    cv::destroyAllWindows();
 
     return 0;
 }

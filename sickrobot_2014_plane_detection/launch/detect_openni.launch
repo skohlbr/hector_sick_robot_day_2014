@@ -6,6 +6,8 @@
     <remap from="camera" to="/camera/rgb/image_raw"/>
     <remap from="camera_info" to="/camera/rgb/camera_info"/>
     <remap from="depth_points" to="/camera/depth/points"/>
+
+    <remap from="pose_percept" to="/worldmodel/pose_percept"/>
   </node>
 
 </launch>

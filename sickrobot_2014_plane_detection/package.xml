@@ -65,6 +65,11 @@
   <build_depend>hector_digit_detection_msgs</build_depend>
   <run_depend>hector_digit_detection_msgs</run_depend>
 
+  <build_depend>hector_worldmodel_msgs</build_depend>
+  <run_depend>hector_worldmodel_msgs</run_depend>
+
+
+
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <!-- You can specify that this package is a metapackage here: -->
