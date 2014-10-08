@@ -3,6 +3,10 @@
 #include "geometry_msgs/PolygonStamped.h"
 
 #include "opencv/cv.h"
+#include "opencv/highgui.h"
+#include "sensor_msgs/Image.h"
+#include "sensor_msgs/image_encodings.h"
+#include <cv_bridge/cv_bridge.h>
 
 #include <pcl_ros/point_cloud.h>
 #include <pcl_ros/transforms.h>
@@ -25,25 +29,51 @@
 
 #include <pcl/filters/voxel_grid.h>
 
+#include <image_transport/image_transport.h>
+#include <image_transport/subscriber_filter.h>
+#include <image_geometry/pinhole_camera_model.h>
+
+#include <message_filters/subscriber.h>
+
+#include <message_filters/sync_policies/approximate_time.h>
+
 
 typedef pcl::PointXYZ PointT;
 
-ros::Publisher pub;
+ros::Publisher plane_pub;
 ros::Publisher poly_pub;
 
 
-void filterCloud(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud){
-    //    pcl::PointCloud<PointT>::Ptr cloud_filtered (new pcl::PointCloud<PointT>);
+sensor_msgs::CameraInfoConstPtr last_info;
 
-    //    pcl::PassThrough<PointT> no_ground_pass;
 
-    //    no_ground_pass.setInputCloud (cloud);
-    //    no_ground_pass.setFilterFieldName ("z");
-    //    no_ground_pass.setFilterLimits (0.15, 1.5);
+void filterDepth(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud){
+    pcl::PointCloud<PointT>::Ptr cloud_filtered (new pcl::PointCloud<PointT>);
 
-    //    no_ground_pass.filter (*cloud_filtered);
+    pcl::PassThrough<PointT> no_ground_pass;
 
-    //    cloud = cloud_filtered;
+    no_ground_pass.setInputCloud (cloud);
+    no_ground_pass.setFilterFieldName ("z");
+    no_ground_pass.setFilterLimits (0.1, 1.4); //TODO tune with wall distance
+
+    no_ground_pass.filter (*cloud_filtered);
+
+    cloud = cloud_filtered;
+}
+
+void filterHeight(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud){
+    pcl::PointCloud<PointT>::Ptr cloud_filtered (new pcl::PointCloud<PointT>);
+
+    pcl::PassThrough<PointT> no_ground_pass;
+    no_ground_pass.setFilterLimitsNegative (true);
+
+    no_ground_pass.setInputCloud (cloud);
+    no_ground_pass.setFilterFieldName ("y");
+    no_ground_pass.setFilterLimits (0, 1);
+
+    no_ground_pass.filter (*cloud_filtered);
+
+    cloud = cloud_filtered;
 }
 
 
@@ -60,8 +90,8 @@ bool segmentDigitPlane(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, boos
     seg.setMethodType (pcl::SAC_RANSAC);
     seg.setDistanceThreshold (0.03);
 
-    seg.setAxis(Eigen::Vector3f(0.0,0.0,1.0));
-    seg.setEpsAngle( 0.1 );
+    seg.setAxis(Eigen::Vector3f(0.0,0.0,1.0)); //Parallel to view point
+    seg.setEpsAngle( 0.2 ); //With 20 degree difference
 
     seg.setInputCloud (cloud);
     seg.segment (*inliers, *coefficients);
@@ -80,34 +110,43 @@ bool segmentDigitPlane(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, boos
     ROS_INFO("Filtering done");
 
 
-    //    //----------------- Filter out spurious stuff in the environment (Assume table is largest cluster) -----------
+    //----------------- Filter out spurious stuff in the environment (Assume table is largest cluster) -----------
 
-    //    //Creating the KdTree object for the search method of the extraction
-    //    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
-    //    tree->setInputCloud (cloud_filtered);
+    //Creating the KdTree object for the search method of the extraction
+    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
+    tree->setInputCloud (cloud_filtered);
 
-    //    std::vector<pcl::PointIndices> cluster_indices;
+    std::vector<pcl::PointIndices> cluster_indices;
 
-    //    pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
-    //    ec.setClusterTolerance (0.007); // 2cm
-    //    ec.setMinClusterSize (100);
-    //    ec.setMaxClusterSize (2500000);
-    //    ec.setSearchMethod (tree);
-    //    ec.setInputCloud (cloud_filtered);
-    //    ec.extract (cluster_indices);
-    //    ROS_INFO("Extraction done");
+    pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
+    ec.setClusterTolerance (0.02); // 2cm
+    ec.setMinClusterSize (100);
+    ec.setMaxClusterSize (250000);
+    ec.setSearchMethod (tree);
+    ec.setInputCloud (cloud_filtered);
+    ec.extract (cluster_indices);
+    ROS_INFO("Extraction done: %d", cluster_indices.size());
 
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);
 
-    size_t size = inliers->indices.size();
+    if  (cluster_indices.size() > 0){
+        //for (std::vector<int>::const_iterator pit = it->indices.begin (); pit != it->indices.end (); pit++)
+        //  cloud_cluster->points.push_back (cloud_filtered->points[*pit]); //*
+        pcl::PointIndices& indices = cluster_indices[0];
 
-    for (size_t i = 0; i < size; ++i){
-        cloud_cluster->points.push_back(cloud_filtered->points[inliers->indices[i]]);
+        size_t size = indices.indices.size();
+
+        for (size_t i = 0; i < size; ++i){
+            cloud_cluster->points.push_back(cloud_filtered->points[indices.indices[i]]);
+        }
+        cloud_cluster->width = cloud_cluster->points.size ();
+        cloud_cluster->height = 1;
+        cloud_cluster->is_dense = true;
+
+    }else{
+        return false;
     }
-    cloud_cluster->width = cloud_cluster->points.size ();
-    cloud_cluster->height = 1;
-    cloud_cluster->is_dense = true;
 
     cloud_plane = cloud_cluster;
 
@@ -177,11 +216,19 @@ std::vector<Eigen::Vector3f> getPlaneRectangle(boost::shared_ptr< pcl::PointClou
     return table_top_bbx;
 }
 
+sensor_msgs::PointCloud2 plane_msg;
+
 void point_cloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg){
+
     ROS_INFO("Processing point_cloud");
     boost::shared_ptr< pcl::PointCloud<PointT> > cloud(new pcl::PointCloud<PointT>);
     pcl::fromROSMsg(*msg, *cloud);
-    filterCloud(cloud);
+    filterDepth(cloud);
+    filterHeight(cloud);
+    sensor_msgs::PointCloud2 filterd_msg;
+    pcl::toROSMsg(*cloud, filterd_msg);
+    plane_pub.publish(filterd_msg);
+
     boost::shared_ptr< pcl::PointCloud<PointT> > cloud_plane(new pcl::PointCloud<PointT>);
     pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
     pcl::PointCloud<pcl::PointXYZ>::Ptr convex_hull (new pcl::PointCloud<pcl::PointXYZ>);
@@ -189,13 +236,14 @@ void point_cloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg){
         ROS_ERROR("Segmentation failed");
         return;
     }
-    const std::vector<Eigen::Vector3f> plane_rect = getPlaneRectangle(cloud, coefficients);
+    const std::vector<Eigen::Vector3f> plane_rect = getPlaneRectangle(cloud_plane, coefficients);
 
     geometry_msgs::PolygonStamped plane_poly;
-    plane_poly.header.frame_id = "/map";
+    plane_poly.header.frame_id = msg->header.frame_id;
     plane_poly.header.stamp = ros::Time::now();
 
-
+    image_geometry::PinholeCameraModel cam_model;
+    //cam_model.fromCameraInfo(last_info);
 
     for (size_t i= 0 ; i < 4; ++i){
         geometry_msgs::Point32 tmp;
@@ -210,6 +258,96 @@ void point_cloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg){
 
 }
 
+sensor_msgs::ImageConstPtr last_image;
+
+void imageCallback(const sensor_msgs::ImageConstPtr& msg){
+    last_image = msg;
+}
+
+
+void infoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg){
+    //last_info = msg;
+}
+
+
+void callback(const sensor_msgs::Image::ConstPtr &image_msg,
+              const sensor_msgs::CameraInfo::ConstPtr& info_msg,
+              const sensor_msgs::PointCloud2::ConstPtr& pc_msg){
+    ROS_INFO("Callback");
+    cv_bridge::CvImageConstPtr cv_ptr;
+    try
+    {
+        if (sensor_msgs::image_encodings::isColor(image_msg->encoding))
+            cv_ptr = cv_bridge::toCvShare(image_msg, sensor_msgs::image_encodings::BGR8);
+        else
+            cv_ptr = cv_bridge::toCvShare(image_msg, sensor_msgs::image_encodings::MONO8);
+    }
+    catch (cv_bridge::Exception& e)
+    {
+        ROS_ERROR("cv_bridge exception: %s", e.what());
+        return;
+    }
+
+    cv::Mat img = cv_ptr->image;
+
+    boost::shared_ptr< pcl::PointCloud<PointT> > cloud(new pcl::PointCloud<PointT>);
+    pcl::fromROSMsg(*pc_msg, *cloud);
+    filterDepth(cloud);
+    filterHeight(cloud);
+    sensor_msgs::PointCloud2 filterd_msg;
+    pcl::toROSMsg(*cloud, filterd_msg);
+    plane_pub.publish(filterd_msg);
+
+    boost::shared_ptr< pcl::PointCloud<PointT> > cloud_plane(new pcl::PointCloud<PointT>);
+    pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr convex_hull (new pcl::PointCloud<pcl::PointXYZ>);
+    if(!segmentDigitPlane(cloud, cloud_plane, coefficients, convex_hull)){
+        ROS_ERROR("Segmentation failed");
+        return;
+    }
+    const std::vector<Eigen::Vector3f> plane_rect = getPlaneRectangle(cloud_plane, coefficients);
+
+    geometry_msgs::PolygonStamped plane_poly;
+    plane_poly.header.frame_id = pc_msg->header.frame_id;
+    plane_poly.header.stamp = ros::Time::now();
+
+    image_geometry::PinholeCameraModel cam_model;
+    cam_model.fromCameraInfo(*info_msg);
+
+    std::vector<cv::Point> img_poly;
+    ROS_INFO("IMG: %d, %d", img.cols, img.rows);
+
+    for (size_t i= 0 ; i < 4; ++i){
+        geometry_msgs::Point32 tmp;
+        tmp.x = plane_rect[i].x();
+        tmp.y = plane_rect[i].y();
+        tmp.z = plane_rect[i].z();
+        ROS_INFO("PolyPoint %d: %f %f %f", i, tmp.x, tmp.y, tmp.z);
+        plane_poly.polygon.points.push_back(tmp);
+        cv::Point3d cvP(tmp.x, tmp.y, tmp.z);
+        cv::Point2d imgPoint = cam_model.project3dToPixel(cvP);
+        cv::Point point((int) imgPoint.x, (int) imgPoint.y);
+        img_poly.push_back(point);
+        ROS_INFO("ImgPoint: %f, %f", imgPoint.x, imgPoint.y);
+
+    }
+
+    cv::Mat mask = cv::Mat::zeros(img.rows, img.cols, img.type());
+    cv::fillConvexPoly(mask, img_poly, cv::Scalar(255, 255, 255));
+
+    cv::Mat dst = cv::Mat::zeros(img.rows, img.cols, img.type());
+
+    img.copyTo(dst, mask);
+
+    poly_pub.publish(plane_poly);
+
+    //cv::polylines(img, img_poly, true, cv::Scalar(0,255,0), 3);
+
+    cv::imshow("view", dst);
+    cv::waitKey(3);
+}
+
+typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::CameraInfo, sensor_msgs::PointCloud2> ApproximateTimeSyncPolicy;
 
 int main(int argc, char** argv)
 {
@@ -217,11 +355,38 @@ int main(int argc, char** argv)
     ros::init(argc, argv, "plane_detector");
     ros::NodeHandle nh_;
 
-    poly_pub = nh_.advertise<geometry_msgs::PolygonStamped>("/digit_plane_poly",1);
+    //ros::Subscriber pc_sub = nh_.subscribe<sensor_msgs::PointCloud2>("/camera/depth_registered/points", 10, point_cloudCallback);
 
-    ros::Subscriber pc_sub = nh_.subscribe<sensor_msgs::PointCloud2>("/camera/depth/points", 10, point_cloudCallback);
+
+    image_transport::ImageTransport it_(nh_);
+    //image_transport::Subscriber sub = it_.subscribe("/camera/rgb/image_color", 1, imageCallback);
+    //image_transport::Subscriber info_sub = it_.subscribe("/camera/rgb/camera_info", 1, infoCallback);
+
+    poly_pub = nh_.advertise<geometry_msgs::PolygonStamped>("/digit_plane_poly",1);
+    plane_pub = nh_.advertise<sensor_msgs::PointCloud2>("/plane", 1);
+
+    //ros::Subscriber pc_sub = nh_.subscribe<sensor_msgs::PointCloud2>("/camera/depth/points", 10, point_cloudCallback);
+
+
+    image_transport::SubscriberFilter image_sub;
+    message_filters::Subscriber<sensor_msgs::CameraInfo> info_sub;
+    message_filters::Subscriber<sensor_msgs::PointCloud2> pc_sub;
+    message_filters::Synchronizer<ApproximateTimeSyncPolicy> sync_(ApproximateTimeSyncPolicy(5), image_sub, info_sub, pc_sub);
+
+    image_sub.subscribe(it_,"/camera/rgb/image_color", 1);
+    info_sub.subscribe(nh_, "/camera/rgb/camera_info", 1);
+    pc_sub.subscribe(nh_, "/camera/depth_registered/points", 1);
+
+    //    sync_.connectInput(image_sub, info_sub, pc_sub);
+    //   sync_.registerCallback(callback);
+    sync_.registerCallback(boost::bind(&callback, _1, _2, _3));
+
+    cv::namedWindow("view");
+
 
     ros::spin();
+
+    cv::destroyAllWindows();
 
     return 0;
 }
