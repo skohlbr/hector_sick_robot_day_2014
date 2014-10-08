@@ -4,7 +4,7 @@ project(hector_digit_detection_python)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED rospy hector_digit_detection_msgs sensor_msgs)
+find_package(catkin REQUIRED rospy sensor_msgs)
 
 find_package(OpenCV REQUIRED)
 
