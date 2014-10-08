@@ -33,6 +33,8 @@ from std_msgs.msg import String
 from sensor_msgs.msg import CompressedImage
 from sensor_msgs.msg import Image
 from hector_digit_detection_msgs.srv import *
+from cv_bridge import CvBridge, CvBridgeError
+from collections import Counter
 
 from multiprocessing.pool import ThreadPool
 
@@ -117,7 +119,6 @@ class SVM(StatModel):
     def predict(self, samples):
         return self.model.predict_all(samples).ravel()
 
-
 def evaluate_model(model, digits, samples, labels):
     resp = model.predict(samples)
     err = (labels != resp).mean()
@@ -165,16 +166,39 @@ def preprocess_hog(digits):
 
 def imageCallback(svmmodel,data):
 	print 'in callback! \n'
-	print 'received image of type: "%s"' % data.format
+        #print 'received image of type: "%s"' % data.format
 
         #### direct conversion to CV2 ####
-        np_arr = np.fromstring(data.data, np.uint8)
-        image_np = cv2.imdecode(np_arr, cv2.CV_LOAD_IMAGE_GRAYSCALE)
-	image_np2 = cv2.bitwise_not(image_np)
+        #np_arr = np.fromstring(data.data, np.uint8)
+        #image_np = cv2.imdecode(data.data, cv2.CV_LOAD_IMAGE_GRAYSCALE)
+
+        print '---'
+        print type(data)
+        print '---'
+        print type(data.data)
+        print '---'
+        print data.data.encoding
+        print '---'
+
+        bridge = CvBridge()
+        cv_image = bridge.imgmsg_to_cv2(data.data)
+        #cv2.imshow('input image', cv_image)
+        #cv2.waitKey(0)
+
+        print type(cv_image)
+        print '---'
+        #print "size = %d,%d" % (cv_image.size().height, cv_image.size().width)
+
+        image_np = cv_image
+
+        #image_np = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+        image_np2 = cv2.bitwise_not(image_np)
 	image_np3 = cv2.adaptiveThreshold(image_np2, 255, 1, 1, 11, 2)
 	image_np4 = image_np3
-	contours, hierarchy = cv2.findContours(image_np4, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contours, hierarchy = cv2.findContours(image_np4, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 		
+        values = []
+
 	for cnt in contours:
 		if cv2.contourArea(cnt) > 100:
 			x,y,w,h = cv2.boundingRect(cnt)
@@ -195,15 +219,18 @@ def imageCallback(svmmodel,data):
 				samples = preprocess_hog([digit2])
 				resp = model.predict(samples)
 				print resp
+                                values.append(resp)
 				
 				#cv2.imshow('all', roi)
 				#cv2.imshow('single', digit2)	
 				#cv2.waitKey(0)
 
+        return values[0], 0.0
+
 def image2digit_service(svmmodel, data):
 	print 'in service! \n'
-	print 'received image of type: "%s"' % data.format
-	imageCallback(svmmodel, data)
+        #print 'received image of type: "%s"' % data.format
+        return imageCallback(svmmodel, data)
 
 
 if __name__ == '__main__':
