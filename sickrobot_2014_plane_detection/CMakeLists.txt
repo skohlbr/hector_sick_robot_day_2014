@@ -88,7 +88,7 @@ find_package(OpenCV REQUIRED)
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES sickrobot_2014_plane_detection
-   CATKIN_DEPENDS roscpp pcl_ros sensor_msgs cv_bridge geometry_msgs image_transport image_geometry
+   CATKIN_DEPENDS roscpp pcl_ros sensor_msgs cv_bridge geometry_msgs image_transport image_geometry hector_digit_detection_msgs
 #  DEPENDS system_lib
 )
 

@@ -37,11 +37,19 @@
 
 #include <message_filters/sync_policies/approximate_time.h>
 
+#include <tf/transform_listener.h>
+
+#include <float.h>
+
+#include <hector_digit_detection_msgs/Image2Digit.h>
+
 
 typedef pcl::PointXYZ PointT;
 
 ros::Publisher plane_pub;
 ros::Publisher poly_pub;
+tf::TransformListener* listener;
+ros::ServiceClient digit_service;
 
 
 sensor_msgs::CameraInfoConstPtr last_info;
@@ -218,62 +226,13 @@ std::vector<Eigen::Vector3f> getPlaneRectangle(boost::shared_ptr< pcl::PointClou
 
 sensor_msgs::PointCloud2 plane_msg;
 
-void point_cloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg){
-
-    ROS_INFO("Processing point_cloud");
-    boost::shared_ptr< pcl::PointCloud<PointT> > cloud(new pcl::PointCloud<PointT>);
-    pcl::fromROSMsg(*msg, *cloud);
-    filterDepth(cloud);
-    filterHeight(cloud);
-    sensor_msgs::PointCloud2 filterd_msg;
-    pcl::toROSMsg(*cloud, filterd_msg);
-    plane_pub.publish(filterd_msg);
-
-    boost::shared_ptr< pcl::PointCloud<PointT> > cloud_plane(new pcl::PointCloud<PointT>);
-    pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
-    pcl::PointCloud<pcl::PointXYZ>::Ptr convex_hull (new pcl::PointCloud<pcl::PointXYZ>);
-    if(!segmentDigitPlane(cloud, cloud_plane, coefficients, convex_hull)){
-        ROS_ERROR("Segmentation failed");
-        return;
-    }
-    const std::vector<Eigen::Vector3f> plane_rect = getPlaneRectangle(cloud_plane, coefficients);
-
-    geometry_msgs::PolygonStamped plane_poly;
-    plane_poly.header.frame_id = msg->header.frame_id;
-    plane_poly.header.stamp = ros::Time::now();
-
-    image_geometry::PinholeCameraModel cam_model;
-    //cam_model.fromCameraInfo(last_info);
-
-    for (size_t i= 0 ; i < 4; ++i){
-        geometry_msgs::Point32 tmp;
-        tmp.x = plane_rect[i].x();
-        tmp.y = plane_rect[i].y();
-        tmp.z = plane_rect[i].z();
-        ROS_INFO("PolyPoint %d: %f %f %f", i, tmp.x, tmp.y, tmp.z);
-        plane_poly.polygon.points.push_back(tmp);
-    }
-
-    poly_pub.publish(plane_poly);
-
-}
-
-sensor_msgs::ImageConstPtr last_image;
-
-void imageCallback(const sensor_msgs::ImageConstPtr& msg){
-    last_image = msg;
-}
-
-
-void infoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg){
-    //last_info = msg;
-}
-
-
 void callback(const sensor_msgs::Image::ConstPtr &image_msg,
               const sensor_msgs::CameraInfo::ConstPtr& info_msg,
               const sensor_msgs::PointCloud2::ConstPtr& pc_msg){
     ROS_INFO("Callback");
+    ROS_INFO("image: %s", image_msg->header.frame_id.c_str());
+    ROS_INFO("info: %s", info_msg->header.frame_id.c_str());
+    ROS_INFO("pc: %s", pc_msg->header.frame_id.c_str());
     cv_bridge::CvImageConstPtr cv_ptr;
     try
     {
@@ -317,33 +276,108 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
     std::vector<cv::Point> img_poly;
     ROS_INFO("IMG: %d, %d", img.cols, img.rows);
 
+    tf::StampedTransform transform;
+    try{
+        listener->lookupTransform(pc_msg->header.frame_id, image_msg->header.frame_id,
+                                  ros::Time(0), transform);
+    }
+    catch (tf::TransformException &ex) {
+        ROS_ERROR("Lookup Transform failed: %s",ex.what());
+        return;
+    }
+
+    cv::Point2f src[4], dst[4];
+
+    float max_x = 0, min_x = 1000;
+    float max_y = 0, min_y = 1000;
+
+
+
     for (size_t i= 0 ; i < 4; ++i){
         geometry_msgs::Point32 tmp;
         tmp.x = plane_rect[i].x();
         tmp.y = plane_rect[i].y();
         tmp.z = plane_rect[i].z();
-        ROS_INFO("PolyPoint %d: %f %f %f", i, tmp.x, tmp.y, tmp.z);
+
+        tf::Point v3(plane_rect[i].x(), plane_rect[i].y(), plane_rect[i].z());
+        v3 = transform * v3;
         plane_poly.polygon.points.push_back(tmp);
-        cv::Point3d cvP(tmp.x, tmp.y, tmp.z);
-        cv::Point2d imgPoint = cam_model.project3dToPixel(cvP);
+        cv::Point3d cvP(v3.x(), v3.y(), v3.z());
+        cv::Point2f imgPoint = cam_model.project3dToPixel(cvP);
         cv::Point point((int) imgPoint.x, (int) imgPoint.y);
+
+        if(max_x < imgPoint.x){
+            max_x = imgPoint.x;
+        }
+        if(min_x > imgPoint.x){
+            min_x = imgPoint.x;
+        }
+        if(max_y < imgPoint.y){
+            max_y = imgPoint.y;
+        }
+        if(min_y > imgPoint.y){
+            min_y = imgPoint.y;
+        }
+
         img_poly.push_back(point);
-        ROS_INFO("ImgPoint: %f, %f", imgPoint.x, imgPoint.y);
+        src[i] = imgPoint;
+
+        ROS_DEBUG("x: %d, y: %d", point.x, point.y);
+    }
+    poly_pub.publish(plane_poly);
+
+    float avg_x = ((max_x - min_x)/2 + min_x);
+    float avg_y = ((max_y - min_y)/2 + min_y);
+    ROS_DEBUG("max_x: %f", max_x);
+    ROS_DEBUG("min_x: %f", min_x);
+    ROS_DEBUG("max_y: %f", max_y);
+    ROS_DEBUG("min_y: %f", min_y);
+    ROS_DEBUG("avg_x: %f", avg_x);
+    ROS_DEBUG("avg_y: %f", avg_y);
+
+    for (size_t i= 0 ; i < 4; ++i){
+        cv::Point2f point = src[i];
+        if(point.x <= avg_x){
+            if(point.y <= avg_y){
+                dst[i] = (cv::Point2f(0,0));
+            }else{
+                dst[i] = (cv::Point2f(0,480));
+            }
+        }else {
+            if(point.y <= avg_y){
+                dst[i] = (cv::Point2f(640,0));
+            } else{
+                dst[i] = (cv::Point2f(640,480));
+            }
+        }
+    }
+    for (size_t i= 0 ; i < 4; ++i){
+
+        ROS_DEBUG("src: %f, y: %f", src[i].x, src[i].y);
+        ROS_DEBUG("dst: %f, y: %f", dst[i].x, dst[i].y);
 
     }
 
-    cv::Mat mask = cv::Mat::zeros(img.rows, img.cols, img.type());
-    cv::fillConvexPoly(mask, img_poly, cv::Scalar(255, 255, 255));
+    cv::Mat M = cv::getPerspectiveTransform(src, dst);
+    cv::warpPerspective(img, img, M, cv::Size(640, 480));
 
-    cv::Mat dst = cv::Mat::zeros(img.rows, img.cols, img.type());
+    hector_digit_detection_msgs::Image2Digit image2digit;
 
-    img.copyTo(dst, mask);
+    cv_bridge::CvImage out_msg;
+    out_msg.header   = image_msg->header; // Same timestamp and tf frame as input image
+    out_msg.encoding = image_msg->encoding; // Or whatever
+    out_msg.image    = img;
 
-    poly_pub.publish(plane_poly);
+    out_msg.toImageMsg(image2digit.request.data);
 
-    //cv::polylines(img, img_poly, true, cv::Scalar(0,255,0), 3);
+    if(digit_service.call(image2digit)){
 
-    cv::imshow("view", dst);
+        ROS_INFO("Number found: %d", image2digit.response.digit);
+    }else{
+        ROS_ERROR("Service call failed");
+    }
+
+    cv::imshow("view", img);
     cv::waitKey(3);
 }
 
@@ -355,34 +389,28 @@ int main(int argc, char** argv)
     ros::init(argc, argv, "plane_detector");
     ros::NodeHandle nh_;
 
-    //ros::Subscriber pc_sub = nh_.subscribe<sensor_msgs::PointCloud2>("/camera/depth_registered/points", 10, point_cloudCallback);
-
-
     image_transport::ImageTransport it_(nh_);
-    //image_transport::Subscriber sub = it_.subscribe("/camera/rgb/image_color", 1, imageCallback);
-    //image_transport::Subscriber info_sub = it_.subscribe("/camera/rgb/camera_info", 1, infoCallback);
+
+
+    tf::TransformListener l;
+    listener = &l;
 
     poly_pub = nh_.advertise<geometry_msgs::PolygonStamped>("/digit_plane_poly",1);
     plane_pub = nh_.advertise<sensor_msgs::PointCloud2>("/plane", 1);
-
-    //ros::Subscriber pc_sub = nh_.subscribe<sensor_msgs::PointCloud2>("/camera/depth/points", 10, point_cloudCallback);
-
 
     image_transport::SubscriberFilter image_sub;
     message_filters::Subscriber<sensor_msgs::CameraInfo> info_sub;
     message_filters::Subscriber<sensor_msgs::PointCloud2> pc_sub;
     message_filters::Synchronizer<ApproximateTimeSyncPolicy> sync_(ApproximateTimeSyncPolicy(5), image_sub, info_sub, pc_sub);
 
-    image_sub.subscribe(it_,"/camera/rgb/image_color", 1);
-    info_sub.subscribe(nh_, "/camera/rgb/camera_info", 1);
-    pc_sub.subscribe(nh_, "/camera/depth_registered/points", 1);
-
-    //    sync_.connectInput(image_sub, info_sub, pc_sub);
-    //   sync_.registerCallback(callback);
+    image_sub.subscribe(it_,"camera", 1);
+    info_sub.subscribe(nh_, "camera_info", 1);
+    pc_sub.subscribe(nh_, "depth_points", 1);
     sync_.registerCallback(boost::bind(&callback, _1, _2, _3));
 
-    cv::namedWindow("view");
+    digit_service = nh_.serviceClient<hector_digit_detection_msgs::Image2Digit>("image2digit");
 
+    cv::namedWindow("view");
 
     ros::spin();
 

@@ -62,6 +62,8 @@
   <build_depend>image_geometry</build_depend>
   <run_depend>image_geometry</run_depend>
 
+  <build_depend>hector_digit_detection_msgs</build_depend>
+  <run_depend>hector_digit_detection_msgs</run_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
