@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+# roslaunch hector_digit_detection_python digit_detection.launch
+
 '''
 SVM and KNearest digit recognition.
 
