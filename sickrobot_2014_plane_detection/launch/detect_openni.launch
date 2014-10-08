@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  <node name="plane_detection" pkg="sickrobot_2014_plane_detection" type="sickrobot_2014_plane_detection_node" respawn="true" output="screen">
+    <remap from="camera" to="/camera/rgb/image_raw"/>
+    <remap from="camera_info" to="/camera/rgb/camera_info"/>
+    <remap from="depth_points" to="/camera/depth/points"/>
+  </node>
+
+</launch>
