@@ -74,6 +74,7 @@
      <param name="max_ang" value="  2.2689" />
      <param name="frame_id" value="/hokuyo_laser_frame" />
      <param name="port" type="string" value="/dev/hokuyo"/>
+     <remap from="/laser1/scan" to="/hokuyo_scan"/>
   </node>
 
   <!-- Barcode Scanner -->
@@ -83,7 +84,6 @@
 
   <!-- Blinky -->
   <include file="$(find sickrobot_2014_blinky)/launch/blinky.launch">
-    <param name="port" type="string" value="/dev/blinky"/>
   </include>
 
   <!-- Forward Camera -->
