@@ -110,10 +110,10 @@ int main(int argc, char** argv)
             char number = buffer[1];
 
             if(number == 'X'){
-                ROS_INFO("NOREAD");
+                ROS_DEBUG("NOREAD");
             }else{
                 station = number - '0';
-                ROS_INFO("READ: %c -> %d", number, station);
+                ROS_DEBUG("READ: %c -> %d", number, station);
             }
             msg.data = station;
             pub.publish(msg);
