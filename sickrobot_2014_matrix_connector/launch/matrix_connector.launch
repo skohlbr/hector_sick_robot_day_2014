@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  <node name="matrix_connector" pkg="sickrobot_2014_matrix_connector" type="sickrobot_2014_matrix_connector_node" respawn="true" output="screen">
+    
+  </node>
+
+</launch>
