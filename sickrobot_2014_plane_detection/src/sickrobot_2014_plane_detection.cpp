@@ -79,8 +79,8 @@ void filterHeight(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud){
     no_ground_pass.setFilterLimitsNegative (true);
 
     no_ground_pass.setInputCloud (cloud);
-    no_ground_pass.setFilterFieldName ("y");
-    no_ground_pass.setFilterLimits (plane_height, plane_height + 2.0);
+    no_ground_pass.setFilterFieldName ("x");
+    no_ground_pass.setFilterLimits (plane_height, plane_height + 1.0);
 
     no_ground_pass.filter (*cloud_filtered);
 
@@ -89,6 +89,11 @@ void filterHeight(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud){
 
 
 bool segmentDigitPlane(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, boost::shared_ptr< pcl::PointCloud<PointT> >& cloud_plane, pcl::ModelCoefficients::Ptr& coefficients ,pcl::PointCloud<pcl::PointXYZ>::Ptr& convex_hull){
+
+    if(cloud->size() < 100){
+        return false;
+    }
+
     ROS_INFO("Start segmentation");
     pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
 
@@ -413,6 +418,9 @@ int main(int argc, char** argv)
 
     nh_.param("wall_distance", wall_distance, 2.0);
     nh_.param("plane_height", plane_height, 1.0);
+
+    ROS_INFO("Using Wall distance: %f", wall_distance);
+    ROS_INFO("Using Plane height: %f", plane_height);
 
     image_transport::ImageTransport it_(nh_);
 
