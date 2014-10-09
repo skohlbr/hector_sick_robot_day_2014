@@ -133,7 +133,11 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
     image_circles = cv_ptr->image.clone();
     image_lines = cv_ptr->image.clone();
     image_template = cv_ptr->image.clone();
-    cv::cvtColor( cv_ptr->image, image_gray, CV_BGR2GRAY ); // Convert image to gray
+    if(cv_ptr->image.channels() != 1){
+        cv::cvtColor( cv_ptr->image, image_gray, CV_BGR2GRAY ); // Convert image to gray
+    }else{
+        image_gray = cv_ptr->image.clone();
+    }
     cv::GaussianBlur( image_gray, image_gray, cv::Size(9, 9), 2, 2 ); // Reduce the noise so we avoid false circle detection
 
     std::vector<cv::Vec3f> circles;
