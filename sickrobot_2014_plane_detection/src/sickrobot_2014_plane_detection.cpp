@@ -76,10 +76,10 @@ void filterHeight(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud){
     pcl::PointCloud<PointT>::Ptr cloud_filtered (new pcl::PointCloud<PointT>);
 
     pcl::PassThrough<PointT> no_ground_pass;
-    no_ground_pass.setFilterLimitsNegative (true);
+    no_ground_pass.setFilterLimitsNegative (false);
 
     no_ground_pass.setInputCloud (cloud);
-    no_ground_pass.setFilterFieldName ("x");
+    no_ground_pass.setFilterFieldName ("y");
     no_ground_pass.setFilterLimits (plane_height, plane_height + 1.0);
 
     no_ground_pass.filter (*cloud_filtered);
@@ -413,8 +413,8 @@ typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sens
 int main(int argc, char** argv)
 {
 
-    ros::init(argc, argv, "plane_detector");
-    ros::NodeHandle nh_;
+    ros::init(argc, argv, "plane_detection");
+    ros::NodeHandle nh_("~");
 
     nh_.getParam("wall_distance", wall_distance);
     nh_.getParam("plane_height", plane_height);
@@ -438,9 +438,9 @@ int main(int argc, char** argv)
     message_filters::Subscriber<sensor_msgs::PointCloud2> pc_sub;
     message_filters::Synchronizer<ApproximateTimeSyncPolicy> sync_(ApproximateTimeSyncPolicy(5), image_sub, info_sub, pc_sub);
 
-    image_sub.subscribe(it_,"camera", 1);
-    info_sub.subscribe(nh_, "camera_info", 1);
-    pc_sub.subscribe(nh_, "depth_points", 1);
+    image_sub.subscribe(it_,"/camera/rgb/image_raw", 1);
+    info_sub.subscribe(nh_, "/camera/rgb/camera_info", 1);
+    pc_sub.subscribe(nh_, "/camera/depth/points", 1);
     sync_.registerCallback(boost::bind(&callback, _1, _2, _3));
 
     digit_service = nh_.serviceClient<hector_digit_detection_msgs::Image2Digit>("image2digit");
