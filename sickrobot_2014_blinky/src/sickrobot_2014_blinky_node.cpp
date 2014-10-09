@@ -7,8 +7,11 @@
 
 int fd_arduino;
 
+std::string port;
+
 void setup_serial(){
-    fd_arduino = open( "/dev/ttyACM0", O_RDWR| O_NONBLOCK | O_NDELAY );
+
+    fd_arduino = open( port.c_str(), O_RDWR| O_NONBLOCK | O_NDELAY );
     if(fd_arduino <= 0){
         ROS_ERROR("Port not found");
     }
@@ -58,6 +61,8 @@ int main(int argc, char **argv)
     ros::NodeHandle n;
 
     ros::ServiceServer service = n.advertiseService("set_led_state", set_state);
+
+    n.param<std::string>("port", port, "/dev/ttyACM0");
 
     setup_serial();
 

@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="base"       default="$(optenv TURTLEBOT_BASE rhoomba)"/>  <!-- create, rhoomba -->
-  <arg name="port"       default="$(optenv TURTLEBOT_PORT /dev/ttyUSB1)"/>
+  <arg name="port"       default="$(optenv TURTLEBOT_PORT /dev/ttyUSB0)"/>
   <arg name="battery"    default="$(optenv TURTLEBOT_BATTERY /proc/acpi/battery/BAT1)"/>  <!-- /proc/acpi/battery/BAT0 in 2.6 or earlier kernels-->
   <arg name="stacks"     default="$(optenv TURTLEBOT_STACKS circles)"/>  <!-- circles, hexagons -->
   <arg name="3d_sensor"  default="$(optenv TURTLEBOT_3D_SENSOR kinect)"/>  <!-- kinect, asus_xtion_pro -->
@@ -34,6 +34,7 @@
     <param name="has_gyro" value="false" />
     <param name="bonus" value="false" />
     <param name="update_rate" value="30.0" />
+    <param name="publish_tf" value="true"/>
     <remap from="cmd_vel" to="mobile_base/commands/velocity" />
     <remap from="turtlebot_node/sensor_state" to="mobile_base/sensors/core" />
     <remap from="imu/data" to="mobile_base/sensors/imu_data" />
@@ -66,12 +67,22 @@
     <arg name="battery" value="$(arg battery)" />
   </include>
   -->
+  <!-- Hokuyo -->
+    <node pkg="hokuyo_node" type="hokuyo_node" name="hokuyo_node" ns="laser1" output="screen">
+     <param name="min_ang" value=" -2.2689" />
+     <param name="max_ang" value="  2.2689" />
+     <param name="frame_id" value="/hokuyo_laser_frame" />
+     <param name="port" type="string" value="/dev/hokuyo"/>
+  </node>
+
   <!-- Barcode Scanner -->
+  <!--
   <include file="$(find sickrobot_2014_matrix_connector)/launch/matrix_connector.launch">
   </include>
-
+  -->
   <!-- Blinky -->
   <include file="$(find sickrobot_2014_blinky)/launch/blinky.launch">
+    <param name="port" type="string" value="/dev/blinky"/>
   </include>
 
 </launch>
