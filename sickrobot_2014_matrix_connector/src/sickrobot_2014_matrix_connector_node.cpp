@@ -98,7 +98,7 @@ int main(int argc, char** argv)
 
     while(ros::ok()){
 
-        ROS_INFO("reading");
+        ROS_DEBUG("reading");
         write(sockfd, matrix_trigger, strlen(matrix_trigger));
         bzero(buffer,256);
         int n = readline(sockfd, buffer, sizeof(buffer));
