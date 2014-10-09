@@ -192,7 +192,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::Cam
 
 int main(int argc, char **argv)
 {
-    debug_ = true;
+    debug_ = false;
 
     ros::init(argc, argv, "target_detection");
     ros::NodeHandle nh;
