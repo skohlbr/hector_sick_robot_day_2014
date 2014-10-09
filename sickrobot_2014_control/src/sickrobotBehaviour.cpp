@@ -319,6 +319,7 @@ protected:
         point.header.stamp=current_target.header.stamp;
         float normal_slope_x;
         float normal_slope_y;
+        //mayb need to transform point to baselink first !!!!
         getNormal(point,normal_slope_x,normal_slope_y);
 
         geometry_msgs::Point my_pos;
@@ -388,7 +389,7 @@ protected:
                                }
 
                                cmdVelTwist.linear.x = 0.0;              
-                               cmdVelTwist.angular.z = 0.2;
+                               cmdVelTwist.angular.z = 0.3;
                                cmdVelPublisher.publish(cmdVelTwist);
 
                                while (((std::abs(my_yaw-atan2(normal_slope_y,normal_slope_x)))>0.05)){
@@ -504,14 +505,84 @@ protected:
             circle_point.target_pose.pose.position.x = mp.x-(exploration_circle_radius-explor_dist_wall)*cos((phi/180.0)*M_PI); //TODO use pose from worldmodel
             circle_point.target_pose.pose.position.y =(exploration_circle_radius-explor_dist_wall)*sin((phi/180.0)*M_PI);
             circle_point.target_pose.pose.position.z = my_pos.z;
+
+
+
+
+            hector_nav_msgs::GetDistanceToObstacle getDist_srv;
+
+
+
+
+
+
             std::cout << "yaw " <<((3.0/2.0)*M_PI)+phi << std::endl;
+            float calc_yaw;
+            float calc_last_yaw;
             if (phi<=90){
-            circle_point.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(((1.0/2.0)*M_PI)-((phi/180.0)*M_PI));
+                calc_yaw=((1.0/2.0)*M_PI)-((phi/180.0)*M_PI);
+                calc_last_yaw=((1.0/2.0)*M_PI)-(((phi-10)/180.0)*M_PI);
+            circle_point.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(calc_yaw);
             }
             else{
-                circle_point.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(((1.0/2.0)*M_PI)-(((phi)/180.0)*M_PI)+(2*M_PI));
+                calc_yaw=((1.0/2.0)*M_PI)-(((phi)/180.0)*M_PI)+(2*M_PI);
+                calc_last_yaw=((1.0/2.0)*M_PI)-(((phi-10)/180.0)*M_PI)+(2*M_PI);
+                circle_point.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(calc_yaw);
 
             }
+
+            if (phi!=0){
+
+
+            geometry_msgs::PointStamped direction;
+
+            direction.point.x=0.0;
+            direction.point.y=3.0;
+            direction.header.frame_id="base_link";
+            direction.header.stamp=ros::Time::now();
+            getDist_srv.request.point.header.stamp = direction.header.stamp;
+            getDist_srv.request.point.header.frame_id="base_link";
+
+            direction.point.z=my_pos.z;
+            std::cout << "x " << direction.point.x<< "   y" <<direction.point.y<<std::endl;
+
+            getDist_srv.request.point=direction;
+            visualization_msgs::MarkerArray marker_array;
+            visualization_msgs::Marker marker;
+            marker.header.stamp = getDist_srv.request.point.header.stamp = ros::Time::now();
+            marker.header.frame_id = "base_link";
+            marker.type = visualization_msgs::Marker::LINE_LIST;
+            marker.action = visualization_msgs::Marker::ADD;
+            marker.color.r= 1.0;
+            marker.color.a = 1.0;
+            marker.scale.x = 0.02;
+            marker.ns ="";
+            marker.action = visualization_msgs::Marker::ADD;
+            marker.pose.orientation.w = 1.0;
+
+            std::vector<geometry_msgs::Point> point_vector;
+            geometry_msgs::Point p1;
+            p1.x=0;
+            p1.y=0;
+            p1.z=direction.point.z;
+
+                point_vector.push_back(p1);
+
+                point_vector.push_back(direction.point);
+
+            marker.points=point_vector;
+            marker_array.markers.push_back(marker);
+            m_marker_normal.publish(marker_array);
+
+
+
+
+            getDist_client.call(getDist_srv);
+            std::cout << "distance to wall " << getDist_srv.response.distance << std::endl;
+            }
+
+
+
            // while (_state == STATE_DRIVE_TO_UNLOAD_STATION) {
 
                 ROS_INFO("Sending goal");
@@ -919,6 +990,7 @@ protected:
         getDist_client.call(getDist_srv);
         float dis=getDist_srv.response.distance;
         distances.push_back(dis);
+        std::cout <<" distance to wall:" <<dis <<std::endl;
         if (i==0){
         direction.point.x=direction.point.x+0.5;}
         else if (i==1){
