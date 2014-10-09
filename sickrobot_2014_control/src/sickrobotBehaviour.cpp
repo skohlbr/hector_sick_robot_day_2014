@@ -456,6 +456,7 @@ protected:
             }
 
         }
+        std::cout << "end of searching for station" << std::endl;
         if (station_known){
         _state = STATE_DRIVE_TO_UNLOAD_STATION;}
         else{
@@ -477,14 +478,12 @@ protected:
 
     void exploration_task(){
         //do this kind of wall following till current target station is known
+        ROS_INFO("started exloration");
         bool is_known=false;
         geometry_msgs::Point mp;
         mp.x=exploration_circle_radius;
         mp.y=0;
         mp.z=0;
-
-
-
         int phi=0;
         while (!is_known){
             if (phi > 360){
@@ -492,20 +491,28 @@ protected:
             }
 
 
-
-
-            geometry_msgs::Point my_pos;
+           geometry_msgs::Point my_pos;
             float                my_yaw;
             getCurrentPosition(&my_pos, &my_yaw);
 
             move_base_msgs::MoveBaseGoal circle_point;
-            circle_point.target_pose.pose.position.x = (exploration_circle_radius-explor_dist_wall)*cos((phi/180)*M_PI)+mp.x; //TODO use pose from worldmodel
-            circle_point.target_pose.pose.position.y =(exploration_circle_radius-explor_dist_wall)*sin((phi/180)*M_PI)+mp.y;
+            circle_point.target_pose.header.frame_id = "map";
+            circle_point.target_pose.header.stamp = ros::Time::now();
+            std::cout << " mp x" <<mp.x << "   mpy " << mp.y <<std::endl;
+            std::cout << "cos x " << (exploration_circle_radius-explor_dist_wall)*cos((phi/180.0)*M_PI) <<std::endl;
+            std::cout << "sin y " << (exploration_circle_radius-explor_dist_wall)*sin((phi/180.0)*M_PI) <<std::endl;
+            circle_point.target_pose.pose.position.x = mp.x-(exploration_circle_radius-explor_dist_wall)*cos((phi/180.0)*M_PI); //TODO use pose from worldmodel
+            circle_point.target_pose.pose.position.y =(exploration_circle_radius-explor_dist_wall)*sin((phi/180.0)*M_PI);
             circle_point.target_pose.pose.position.z = my_pos.z;
+            std::cout << "yaw " <<((3.0/2.0)*M_PI)+phi << std::endl;
+            if (phi<=90){
+            circle_point.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(((1.0/2.0)*M_PI)-((phi/180.0)*M_PI));
+            }
+            else{
+                circle_point.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(((1.0/2.0)*M_PI)-(((phi)/180.0)*M_PI)+(2*M_PI));
 
-            circle_point.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(((3/2)*M_PI)+phi);
-
-            while (_state == STATE_DRIVE_TO_UNLOAD_STATION) {
+            }
+           // while (_state == STATE_DRIVE_TO_UNLOAD_STATION) {
 
                 ROS_INFO("Sending goal");
                 mbClient->sendGoal(circle_point);
@@ -516,13 +523,13 @@ protected:
                     ROS_INFO("Great we reached the goal");
 
                    // setState(STATE_STOP);
-                    _state=STATE_POSITIONING;
-                    return;
+                   // _state=STATE_POSITIONING;
+
                 } else {
                     ROS_INFO("That was bad, we didn't reach our goal");
                 }
-            }
-         phi++;
+           // }
+         phi=phi+10;
         }
         _state=STATE_DRIVE_TO_UNLOAD_STATION;
     }
