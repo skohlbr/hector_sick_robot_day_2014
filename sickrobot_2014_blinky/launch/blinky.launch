@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  <node name="blinky_control" pkg="sickrobot_2014_blinky" type="sickrobot_2014_blinky_node" respawn="true" output="screen">
+      <param name="port" type="string" value="/dev/blinky"/>
+  </node>
+
+</launch>

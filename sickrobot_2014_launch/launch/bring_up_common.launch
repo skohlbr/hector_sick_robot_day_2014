@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<launch>
+
+    <include file="$(find hector_turtlebot_navigation)/launch/gmapping.launch" />
+
+    <include file="$(find hector_object_tracker)/launch/object_tracker_sick_robot_day_2014.launch" />
+
+    <node pkg="hector_map_server" type="hector_map_server" name="hector_map_server" output="screen" respawn="true">
+    </node>
+
+    <include file="$(find sickrobot_2014_target_detection)/launch/detect_forward_cam.launch" />
+
+    <include file="$(find sickrobot_2014_control)/launch/sick_robot_2014_behavior.launch" />
+
+</launch>
