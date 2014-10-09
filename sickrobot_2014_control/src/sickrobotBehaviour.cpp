@@ -11,7 +11,7 @@
 #include "std_msgs/String.h"
 #include <sickrobot_2014_msgs/StartMission.h>
 #include <sickrobot_2014_msgs/ExecuteState.h>
-
+#include <tf/transform_broadcaster.h>
 #include <math.h>
 
 //#include <LinearMath/btTransform.h>
@@ -45,7 +45,7 @@ public:
 
     sickrobot_behaviour()
     {
-         struct Vector2D{
+        struct Vector2D{
             float x;
             float y;
         };
@@ -54,8 +54,9 @@ public:
         worldmodel_AddObject = worldmodel.serviceClient<hector_worldmodel_msgs::AddObject>("add_object");
         worldmodel.param("exploration_dist_wall", explor_dist_wall, 1.0);
         worldmodel.param("exploration_circle_radius", exploration_circle_radius, 6.0);
+        worldmodel.param("exploration_error_dis_wall_threshold", exploration_error_dis_wall_threshold, 0.1);
         ros::NodeHandle root("");
-       cmdVelPublisher = root.advertise<geometry_msgs::Twist>("turtlebot_node/cmd_vel", 10, false);
+        cmdVelPublisher = root.advertise<geometry_msgs::Twist>("turtlebot_node/cmd_vel", 10, false);
         messagePublisher = root.advertise<std_msgs::String>("sickrobot/print", 10, false);
 
         holzklotzSubscriber = root.subscribe<std_msgs::Int32>("holzklotz_number", 10, &sickrobot_behaviour::holzklotzCb, this);
@@ -137,7 +138,7 @@ public:
                 ROS_INFO("do nothing");
             } //else if (_state == STATE_DRIVE_1m){
             else{
-              //  ROS_INFO("do something");
+                //  ROS_INFO("do something");
                 //ROS_INFO("run1: went into the state request for finding target balls");
                 //          if (getNearestBall()){
                 //            ROS_DEBUG("run1: Send mbClient command to cancel all Goals");
@@ -210,10 +211,10 @@ protected:
                 _state_lock = false;
                 break;
 
-//            case STATE_DRIVE_1m:
-//                // driveToGoal();
-//                drive_1m();
-//                break;
+                //            case STATE_DRIVE_1m:
+                //                // driveToGoal();
+                //                drive_1m();
+                //                break;
             };
 
             //      if (_executeSingleState) {
@@ -267,46 +268,46 @@ protected:
         //drive straight until first goal station is seen, then drive towards it till certain distance threshold
         //TODO make an adaptive step control ( if not possible to plan through wall etc)
         ROS_INFO("state: driving to first load station");
-                while (_number_objects==0){
-                geometry_msgs::Point my_pos;
-                float                my_yaw;
+        while (_number_objects==0){
+            geometry_msgs::Point my_pos;
+            float                my_yaw;
 
-                getCurrentPosition(&my_pos, &my_yaw);
+            getCurrentPosition(&my_pos, &my_yaw);
 
-                std::cout << "pos x:" <<my_pos.x << "   pos_y:"<<my_pos.y << "   my pos z:" <<my_pos.z<<   "yaw  " <<my_yaw <<std::endl;
-                move_base_msgs::MoveBaseGoal goal;
-                goal.target_pose.header.frame_id = "map";
-                goal.target_pose.header.stamp = ros::Time::now();
+            std::cout << "pos x:" <<my_pos.x << "   pos_y:"<<my_pos.y << "   my pos z:" <<my_pos.z<<   "yaw  " <<my_yaw <<std::endl;
+            move_base_msgs::MoveBaseGoal goal;
+            goal.target_pose.header.frame_id = "map";
+            goal.target_pose.header.stamp = ros::Time::now();
 
 
-                //TODO need to ckeck if we really need yaw cos sin here !!!! maybe drifting because of this
-                goal.target_pose.pose.position.x = my_pos.x+0.75;//*cos(my_yaw);
-                goal.target_pose.pose.position.y = my_pos.y;//+1*sin(my_yaw);
-                goal.target_pose.pose.position.z = my_pos.z;
-                goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(0);
+            //TODO need to ckeck if we really need yaw cos sin here !!!! maybe drifting because of this
+            goal.target_pose.pose.position.x = my_pos.x+0.75;//*cos(my_yaw);
+            goal.target_pose.pose.position.y = my_pos.y;//+1*sin(my_yaw);
+            goal.target_pose.pose.position.z = my_pos.z;
+            goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(0);
 
-                //_state = STATE_DRIVE_TO_GOAL;
-               // driveToGoal(goal);
+            //_state = STATE_DRIVE_TO_GOAL;
+            // driveToGoal(goal);
 
-                ROS_INFO("Sending goal");
-                           mbClient->sendGoal(goal);
+            ROS_INFO("Sending goal");
+            mbClient->sendGoal(goal);
 
-                           mbClient->waitForResult();
+            mbClient->waitForResult();
 
-                           if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
-                               ROS_INFO("Great we reached the goal");
+            if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+                ROS_INFO("Great we reached the goal");
 
-                              // setState(STATE_STOP);
-                              // return;
-                           }
+                // setState(STATE_STOP);
+                // return;
+            }
 
-                           else {
-                               ROS_INFO("That was bad, we didn't reach our goal");
-                           }
+            else {
+                ROS_INFO("That was bad, we didn't reach our goal");
+            }
 
-              }
-                current_target = objects->objects[0];
-                first_load_station=objects->objects[0];
+        }
+        current_target = objects->objects[0];
+        first_load_station=objects->objects[0];
         _state = STATE_POSITIONING;
     }
 
@@ -338,88 +339,88 @@ protected:
         goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(M_PI+atan2(normal_slope_y,normal_slope_x));
 
         ROS_INFO("Sending goal");
-                   mbClient->sendGoal(goal);
+        mbClient->sendGoal(goal);
 
-                   mbClient->waitForResult();
+        mbClient->waitForResult();
 
-                   if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
-                       ROS_INFO("Great we reached the goal");
-                        //initialize Twist-Message
-                               geometry_msgs::Twist cmdVelTwist;
-                               cmdVelTwist.linear.x = 0.0;
-                               cmdVelTwist.linear.y = 0.0;
-                               cmdVelTwist.linear.z = 0.0;
-                               cmdVelTwist.angular.x = 0.0;
-                               cmdVelTwist.angular.y = 0.0;
-                               cmdVelTwist.angular.z = 0.0;
+        if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+            ROS_INFO("Great we reached the goal");
+            //initialize Twist-Message
+            geometry_msgs::Twist cmdVelTwist;
+            cmdVelTwist.linear.x = 0.0;
+            cmdVelTwist.linear.y = 0.0;
+            cmdVelTwist.linear.z = 0.0;
+            cmdVelTwist.angular.x = 0.0;
+            cmdVelTwist.angular.y = 0.0;
+            cmdVelTwist.angular.z = 0.0;
 
-                               getCurrentPosition(&my_pos, &my_yaw);
-                               float offset_error;
-                               offset_error=(std::abs(my_pos.x- current_target.pose.pose.position.x)-dist_wall);
-                               std::cout << "ofset error " <<offset_error<<std::endl;
+            getCurrentPosition(&my_pos, &my_yaw);
+            float offset_error;
+            offset_error=(std::abs(my_pos.x- current_target.pose.pose.position.x)-dist_wall);
+            std::cout << "ofset error " <<offset_error<<std::endl;
 
-                               std::cout << "my pos " << my_pos.x<<  "   target " <<current_target.pose.pose.position.x <<" norm  "<<0.25*normal_slope_x<<std::endl;
-                               //std::cout << " dist to target " << abs((my_pos.x- current_target.pose.pose.position.x)+(0.2*normal_slope_x)) << std::endl;
-                               std::cout << " dist to target " << std::abs(my_pos.x- current_target.pose.pose.position.x)+0.25*normal_slope_x-offset_error << std::endl;
-                                //std::cout << " dist to target " << ((my_pos.x- current_target.pose.pose.position.x)+(0.2*normal_slope_x)) << std::endl;
-                               //                              getPoint(targetPosMap, "/base_link", "/map", targetPosBaseLink);
+            std::cout << "my pos " << my_pos.x<<  "   target " <<current_target.pose.pose.position.x <<" norm  "<<0.25*normal_slope_x<<std::endl;
+            //std::cout << " dist to target " << abs((my_pos.x- current_target.pose.pose.position.x)+(0.2*normal_slope_x)) << std::endl;
+            std::cout << " dist to target " << std::abs(my_pos.x- current_target.pose.pose.position.x)+0.25*normal_slope_x-offset_error << std::endl;
+            //std::cout << " dist to target " << ((my_pos.x- current_target.pose.pose.position.x)+(0.2*normal_slope_x)) << std::endl;
+            //                              getPoint(targetPosMap, "/base_link", "/map", targetPosBaseLink);
 
-//                               //      float targetAngle = std::atan2(targetPosBaseLink.y , targetPosBaseLink.x);
-//                               //      approachBallGetCurVelData(&angle, &dist);
-//                               float dist = getEuclidDist(targetPosBaseLink.x, targetPosBaseLink.y);
-//                               ROS_DEBUG("adjustTranslation dist: %f", dist);
+            //                               //      float targetAngle = std::atan2(targetPosBaseLink.y , targetPosBaseLink.x);
+            //                               //      approachBallGetCurVelData(&angle, &dist);
+            //                               float dist = getEuclidDist(targetPosBaseLink.x, targetPosBaseLink.y);
+            //                               ROS_DEBUG("adjustTranslation dist: %f", dist);
 
-//                               int loopIters = 0;
-                               while (((std::abs(my_pos.x- current_target.pose.pose.position.x)+0.25*normal_slope_x-offset_error)>0.05)){
-                                 //        if (dist > 0.5)
-                                 //          dist = 0.5;
+            //                               int loopIters = 0;
+            while (((std::abs(my_pos.x- current_target.pose.pose.position.x)+0.25*normal_slope_x-offset_error)>0.05)){
+                //        if (dist > 0.5)
+                //          dist = 0.5;
 
-                                   std::cout << " dist to target " << std::abs(my_pos.x- current_target.pose.pose.position.x)+0.25*normal_slope_x-offset_error << std::endl;
+                std::cout << " dist to target " << std::abs(my_pos.x- current_target.pose.pose.position.x)+0.25*normal_slope_x-offset_error << std::endl;
 
-                                 cmdVelTwist.linear.x = 0.1;
-
-
-
-
-
-                                 cmdVelPublisher.publish(cmdVelTwist);
-
-                                 ros::Duration(0.1).sleep();
-                                 getCurrentPosition(&my_pos, &my_yaw);
-                               }
-
-                               cmdVelTwist.linear.x = 0.0;              
-                               cmdVelTwist.angular.z = 0.3;
-                               cmdVelPublisher.publish(cmdVelTwist);
-
-                               while (((std::abs(my_yaw-atan2(normal_slope_y,normal_slope_x)))>0.05)){
-
-
-                                   cmdVelPublisher.publish(cmdVelTwist);
-                                    ros::Duration(0.1).sleep();
-                                    getCurrentPosition(&my_pos, &my_yaw);
-
-                               }
-                               cmdVelTwist.linear.x = 0.0;
-                               cmdVelTwist.angular.z = 0.0;
-                               cmdVelPublisher.publish(cmdVelTwist);
+                cmdVelTwist.linear.x = 0.1;
 
 
 
 
 
-                       if (!_has_cargo){
+                cmdVelPublisher.publish(cmdVelTwist);
 
-                       _state=STATE_LOAD_CARGO;}
-                       else {
-                           _state=STATE_UNLOAD_CARGO;
-                       }
-                      // return;
-                   }
+                ros::Duration(0.1).sleep();
+                getCurrentPosition(&my_pos, &my_yaw);
+            }
 
-                   else {
-                       ROS_INFO("That was bad, we didn't reach our goal");
-                   }
+            cmdVelTwist.linear.x = 0.0;
+            cmdVelTwist.angular.z = 0.3;
+            cmdVelPublisher.publish(cmdVelTwist);
+
+            while (((std::abs(my_yaw-atan2(normal_slope_y,normal_slope_x)))>0.05)){
+
+
+                cmdVelPublisher.publish(cmdVelTwist);
+                ros::Duration(0.1).sleep();
+                getCurrentPosition(&my_pos, &my_yaw);
+
+            }
+            cmdVelTwist.linear.x = 0.0;
+            cmdVelTwist.angular.z = 0.0;
+            cmdVelPublisher.publish(cmdVelTwist);
+
+
+
+
+
+            if (!_has_cargo){
+
+                _state=STATE_LOAD_CARGO;}
+            else {
+                _state=STATE_UNLOAD_CARGO;
+            }
+            // return;
+        }
+
+        else {
+            ROS_INFO("That was bad, we didn't reach our goal");
+        }
 
 
 
@@ -430,13 +431,13 @@ protected:
     void load_cargo_task(){
         ROS_INFO("state: load_cargo");
         while (!_has_cargo){
-        if(present_holzklotz >= 0){
-            _has_cargo=true;
-            _state = STATE_FIND_UNLOAD_STATION;
-            break;
-            //set the number of current unload station
-        }
-        ros::Duration(0.1).sleep();
+            if(present_holzklotz >= 0){
+                _has_cargo=true;
+                _state = STATE_FIND_UNLOAD_STATION;
+                break;
+                //set the number of current unload station
+            }
+            ros::Duration(0.1).sleep();
         }
 
     }
@@ -459,7 +460,7 @@ protected:
         }
         std::cout << "end of searching for station" << std::endl;
         if (station_known){
-        _state = STATE_DRIVE_TO_UNLOAD_STATION;}
+            _state = STATE_DRIVE_TO_UNLOAD_STATION;}
         else{
             _state=STATE_EXPLORATION;
         }
@@ -471,7 +472,7 @@ protected:
         //TODO find unload station in worldmodel
 
         if (found_one){
-        _state = STATE_DRIVE_TO_LOAD_STATION ;}
+            _state = STATE_DRIVE_TO_LOAD_STATION ;}
         else{
             _state=STATE_EXPLORATION;
         }
@@ -479,22 +480,24 @@ protected:
 
     void exploration_task(){
         //do this kind of wall following till current target station is known
+        bool trafo_went_wrong=false;
         ROS_INFO("started exloration");
         bool is_known=false;
+        hector_nav_msgs::GetDistanceToObstacle getDist_srv;
         geometry_msgs::Point mp;
         mp.x=exploration_circle_radius;
         mp.y=0;
         mp.z=0;
         int phi=0;
         while (!is_known){
-            if (phi > 360){
+            if (phi >= 360){
                 phi=0;
             }
 
-
-           geometry_msgs::Point my_pos;
+            geometry_msgs::Point my_pos;
             float                my_yaw;
-            getCurrentPosition(&my_pos, &my_yaw);
+            ros::Time time_now;
+            getCurrentPosition_time(&my_pos, &my_yaw, time_now);
 
             move_base_msgs::MoveBaseGoal circle_point;
             circle_point.target_pose.header.frame_id = "map";
@@ -506,101 +509,168 @@ protected:
             circle_point.target_pose.pose.position.y =(exploration_circle_radius-explor_dist_wall)*sin((phi/180.0)*M_PI);
             circle_point.target_pose.pose.position.z = my_pos.z;
 
-
-
-
-            hector_nav_msgs::GetDistanceToObstacle getDist_srv;
-
-
-
-
-
-
-            std::cout << "yaw " <<((3.0/2.0)*M_PI)+phi << std::endl;
             float calc_yaw;
-            float calc_last_yaw;
             if (phi<=90){
                 calc_yaw=((1.0/2.0)*M_PI)-((phi/180.0)*M_PI);
-                calc_last_yaw=((1.0/2.0)*M_PI)-(((phi-10)/180.0)*M_PI);
-            circle_point.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(calc_yaw);
+                circle_point.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(calc_yaw);
             }
             else{
                 calc_yaw=((1.0/2.0)*M_PI)-(((phi)/180.0)*M_PI)+(2*M_PI);
-                calc_last_yaw=((1.0/2.0)*M_PI)-(((phi-10)/180.0)*M_PI)+(2*M_PI);
                 circle_point.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(calc_yaw);
 
             }
 
             if (phi!=0){
+                geometry_msgs::PointStamped goal_point_in_map;
+                goal_point_in_map.header.stamp=time_now;
+                goal_point_in_map.header.frame_id=circle_point.target_pose.header.frame_id;
+                goal_point_in_map.point= circle_point.target_pose.pose.position;
+                geometry_msgs::PointStamped goal_point_in_bl;
+
+                try
+                {
+                    tf_listener.transformPoint("base_link", goal_point_in_map, goal_point_in_bl);
+                }
+                catch (tf::TransformException &ex)
+                {
+                    printf ("Failure %s\n", ex.what()); //Print exception which was caught
+                   // trafo_went_wrong=true;
+                }
+
+                geometry_msgs::QuaternionStamped quat_point_in_map;
+                quat_point_in_map.header.stamp=time_now;
+                quat_point_in_map.header.frame_id=circle_point.target_pose.header.frame_id;
+                quat_point_in_map.quaternion=circle_point.target_pose.pose.orientation;
+
+                geometry_msgs::QuaternionStamped quat_point_in_bl;
+                try
+                {
+                    tf_listener.transformQuaternion("base_link", quat_point_in_map,quat_point_in_bl);
+
+                }
+                catch (tf::TransformException &ex)
+                {
+                    printf ("Failure %s\n", ex.what()); //Print exception which was caught
+                   // trafo_went_wrong=true;
+                }
+
+                double roll_q, pitch_q, yaw_q;
+                tf::Quaternion q(quat_point_in_bl.quaternion.x,quat_point_in_bl.quaternion.y,quat_point_in_bl.quaternion.z,quat_point_in_bl.quaternion.w);
+                tf::Matrix3x3(q).getRPY(roll_q,pitch_q,yaw_q);
+
+                tf::Transform transform;
+                transform.setOrigin( tf::Vector3(goal_point_in_bl.point.x, goal_point_in_bl.point.y, 0.0) );
+                transform.setRotation( tf::Quaternion(0, 0, yaw_q));
+                ros::Time pub_time=ros::Time::now();
+                br.sendTransform(tf::StampedTransform(transform, pub_time, "base_link", "exploration_goal_frame"));
 
 
-            geometry_msgs::PointStamped direction;
+                geometry_msgs::PointStamped direction;
 
-            direction.point.x=0.0;
-            direction.point.y=3.0;
-            direction.header.frame_id="base_link";
-            direction.header.stamp=ros::Time::now();
-            getDist_srv.request.point.header.stamp = direction.header.stamp;
-            getDist_srv.request.point.header.frame_id="base_link";
+                direction.point.x=0.0;
+                direction.point.y=0.5;
+                direction.header.frame_id="exploration_goal_frame";
+                direction.header.stamp=ros::Time::now();
+                getDist_srv.request.point.header.stamp = direction.header.stamp;
+                getDist_srv.request.point.header.frame_id="exploration_goal_frame";
 
-            direction.point.z=my_pos.z;
-            std::cout << "x " << direction.point.x<< "   y" <<direction.point.y<<std::endl;
+                direction.point.z=my_pos.z;
 
-            getDist_srv.request.point=direction;
-            visualization_msgs::MarkerArray marker_array;
-            visualization_msgs::Marker marker;
-            marker.header.stamp = getDist_srv.request.point.header.stamp = ros::Time::now();
-            marker.header.frame_id = "base_link";
-            marker.type = visualization_msgs::Marker::LINE_LIST;
-            marker.action = visualization_msgs::Marker::ADD;
-            marker.color.r= 1.0;
-            marker.color.a = 1.0;
-            marker.scale.x = 0.02;
-            marker.ns ="";
-            marker.action = visualization_msgs::Marker::ADD;
-            marker.pose.orientation.w = 1.0;
+                getDist_srv.request.point=direction;
 
-            std::vector<geometry_msgs::Point> point_vector;
-            geometry_msgs::Point p1;
-            p1.x=0;
-            p1.y=0;
-            p1.z=direction.point.z;
+                visualization_msgs::MarkerArray marker_array;
+                visualization_msgs::Marker marker;
+                marker.header.stamp = getDist_srv.request.point.header.stamp = ros::Time::now();
+                marker.header.frame_id = "exploration_goal_frame";
+                marker.type = visualization_msgs::Marker::LINE_LIST;
+                marker.action = visualization_msgs::Marker::ADD;
+                marker.color.r= 1.0;
+                marker.color.a = 1.0;
+                marker.scale.x = 0.02;
+                marker.ns ="";
+                marker.action = visualization_msgs::Marker::ADD;
+                marker.pose.orientation.w = 1.0;
+
+                std::vector<geometry_msgs::Point> point_vector;
+                geometry_msgs::Point p1;
+                p1.x=0;
+                p1.y=0;
+                p1.z=direction.point.z;
 
                 point_vector.push_back(p1);
 
                 point_vector.push_back(direction.point);
 
-            marker.points=point_vector;
-            marker_array.markers.push_back(marker);
-            m_marker_normal.publish(marker_array);
+                marker.points=point_vector;
+                marker_array.markers.push_back(marker);
+                m_marker_normal.publish(marker_array);
 
+                getDist_client.call(getDist_srv);
 
+                if (getDist_srv.response.distance >=0){
+                if (std::abs(getDist_srv.response.distance-explor_dist_wall)>exploration_error_dis_wall_threshold){
+                    geometry_msgs::PointStamped correction_point_in_EF;
+                    correction_point_in_EF.header.stamp=pub_time;
+                    correction_point_in_EF.header.frame_id="exploration_goal_frame";
 
+                    correction_point_in_EF.point.x=0;
+                    correction_point_in_EF.point.y=getDist_srv.response.distance-explor_dist_wall;
+                    correction_point_in_EF.point.z=0;
 
-            getDist_client.call(getDist_srv);
-            std::cout << "distance to wall " << getDist_srv.response.distance << std::endl;
+                    geometry_msgs::PointStamped correction_point_in_map;
+
+                    pub_time=ros::Time::now();
+                    br.sendTransform(tf::StampedTransform(transform, pub_time, "base_link", "exploration_goal_frame"));
+
+                    br.sendTransform(tf::StampedTransform(transform, pub_time, "base_link", "exploration_goal_frame"));
+
+                    try
+                    {
+                        tf_listener.transformPoint("map", correction_point_in_EF, correction_point_in_map);
+
+                    }
+                    catch (tf::TransformException &ex)
+                    {
+                        ROS_ERROR("Failure %s\n", ex.what()); //Print exception which was caught
+                        trafo_went_wrong=true;
+                    }
+
+                    circle_point.target_pose.pose.position.x=correction_point_in_map.point.x;
+                    circle_point.target_pose.pose.position.y =correction_point_in_map.point.y;
+                    if (trafo_went_wrong){
+
+                   ROS_WARN("TRANSFORMATION WENT WRONG using circle point");
+                    }
+                   ROS_WARN("modiefied point !!!!!!");
+
+                }
+                }
+                else
+                { ROS_WARN("dist kleiner 0 , not modifying circle point !!!!!!");
+                }
+                std::cout << "distance to wall " << getDist_srv.response.distance << std::endl;
             }
 
 
 
-           // while (_state == STATE_DRIVE_TO_UNLOAD_STATION) {
+            // while (_state == STATE_DRIVE_TO_UNLOAD_STATION) {
 
-                ROS_INFO("Sending goal");
-                mbClient->sendGoal(circle_point);
+            ROS_INFO("Sending goal");
+            mbClient->sendGoal(circle_point);
 
-                mbClient->waitForResult();
+            mbClient->waitForResult();
 
-                if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
-                    ROS_INFO("Great we reached the goal");
+            if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+                ROS_INFO("Great we reached the goal");
 
-                   // setState(STATE_STOP);
-                   // _state=STATE_POSITIONING;
+                // setState(STATE_STOP);
+                // _state=STATE_POSITIONING;
 
-                } else {
-                    ROS_INFO("That was bad, we didn't reach our goal");
-                }
-           // }
-         phi=phi+10;
+            } else {
+                ROS_INFO("That was bad, we didn't reach our goal");
+            }
+            // }
+            phi=phi+10;
         }
         _state=STATE_DRIVE_TO_UNLOAD_STATION;
     }
@@ -635,7 +705,7 @@ protected:
             if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
                 ROS_INFO("Great we reached the goal");
 
-               // setState(STATE_STOP);
+                // setState(STATE_STOP);
                 _state=STATE_POSITIONING;
                 return;
             } else {
@@ -648,44 +718,44 @@ protected:
 
         ROS_INFO("state: unload_cargo");
         while (_has_cargo){
-        if(present_holzklotz < 0){ // check if scanner sending -1 in case of no detection
-            _has_cargo=true;
-            _state = STATE_DRIVE_TO_LOAD_STATION;
-            break;
-            //set the number of current unload station
-        }
-        ros::Duration(0.1).sleep();
+            if(present_holzklotz < 0){ // check if scanner sending -1 in case of no detection
+                _has_cargo=true;
+                _state = STATE_DRIVE_TO_LOAD_STATION;
+                break;
+                //set the number of current unload station
+            }
+            ros::Duration(0.1).sleep();
         }
 
     }
 
     void drive_to_load_station_task(){
-     //look for next loading station, maybe choose always "our" one as other teams maybe also do this
+        //look for next loading station, maybe choose always "our" one as other teams maybe also do this
 
         _state=STATE_POSITIONING;
     }
 
     void drive_1m()
     {
-//        ROS_INFO("state: drive_1m");
+        //        ROS_INFO("state: drive_1m");
 
-//        geometry_msgs::Point my_pos;
-//        float                my_yaw;
+        //        geometry_msgs::Point my_pos;
+        //        float                my_yaw;
 
-//        getCurrentPosition(&my_pos, &my_yaw);
+        //        getCurrentPosition(&my_pos, &my_yaw);
 
-//        std::cout << "pos x:" <<my_pos.x << "   pos_y:"<<my_pos.y << "   my pos z:" <<my_pos.z<<std::endl;
-//        move_base_msgs::MoveBaseGoal goal;
-//        goal.target_pose.header.frame_id = "map";
-//        goal.target_pose.header.stamp = ros::Time::now();
+        //        std::cout << "pos x:" <<my_pos.x << "   pos_y:"<<my_pos.y << "   my pos z:" <<my_pos.z<<std::endl;
+        //        move_base_msgs::MoveBaseGoal goal;
+        //        goal.target_pose.header.frame_id = "map";
+        //        goal.target_pose.header.stamp = ros::Time::now();
 
-//        goal.target_pose.pose.position.x = my_pos.x+0.5;
-//        goal.target_pose.pose.position.y = my_pos.y;
-//        goal.target_pose.pose.position.z = my_pos.z;
-//        goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(my_yaw);
+        //        goal.target_pose.pose.position.x = my_pos.x+0.5;
+        //        goal.target_pose.pose.position.y = my_pos.y;
+        //        goal.target_pose.pose.position.z = my_pos.z;
+        //        goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(my_yaw);
 
-//        _state = STATE_DRIVE_TO_GOAL;
-//        driveToGoal(goal);
+        //        _state = STATE_DRIVE_TO_GOAL;
+        //        driveToGoal(goal);
     }
 
     int curr_waypoint_index;
@@ -801,49 +871,6 @@ protected:
     //    return true;
     //  }
 
-//    void driveToGoal(move_base_msgs::MoveBaseGoal goal)
-//    {
-//        while (_state == STATE_DRIVE_TO_GOAL) {
-//            // UNTESTED
-//            //move_base_msgs::MoveBaseGoal goal;
-
-//            // we'll send a goal to the robot
-//            //      goal.target_pose.header.frame_id = "map";
-//            //      goal.target_pose.header.stamp = ros::Time::now();
-
-//            //      goal.target_pose.pose.position.x = 0.5;
-//            //      goal.target_pose.pose.position.y = 0.0;
-//            //      goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(3.14);
-
-//            ROS_INFO("Sending goal");
-//            mbClient->sendGoal(goal);
-
-//            mbClient->waitForResult();
-
-//            if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
-//                ROS_INFO("Great we reached the goal");
-
-
-//                //        geometry_msgs::Point final_goal_pos;
-//                //        final_goal_pos.x = 0.2;
-//                //        final_goal_pos.y = 0.0;
-//                //        final_goal_pos.z = 0.0;
-
-//                //        this->adjustYaw(final_goal_pos, 0.05);
-//                //        this->adjustTranslation(final_goal_pos, 0.4);
-
-//                //        this->adjustYaw(final_goal_pos, 0.025);
-//                //        this->adjustTranslation(final_goal_pos, 0.2);
-
-//                setState(STATE_STOP);
-//                return;
-//            } else {
-//                ROS_INFO("That was bad, we didn't reach our goal");
-//            }
-//        }
-//    }
-
-
 
     //  void recedeFromGoal()
     //  {
@@ -895,6 +922,34 @@ protected:
     //  }
 
 
+
+    void getCurrentPosition_time(geometry_msgs::Point *pos, float *yaw,ros::Time &time )
+    {
+        tf::StampedTransform trans;
+        try {
+            ros::Time now = ros::Time::now();
+            time=now;
+            tf_listener.waitForTransform("/map", "/base_link", now, ros::Duration(4.0));
+            // get current position and rotation in quanternions
+            tf_listener.lookupTransform("/map", "/base_link", now, trans);
+        } catch (tf::TransformException ex) {
+            ROS_INFO("getCurrentPosition_TF_Error: %s",ex.what());
+            return;
+        }
+
+
+        // get position
+        pos->x = trans.getOrigin().x();
+        pos->y = trans.getOrigin().y();
+        pos->z = trans.getOrigin().z();
+
+        // get yaw-angle
+        *yaw = tf::getYaw(trans.getRotation());
+
+        ROS_DEBUG("getCurrentPosition:");
+        ROS_DEBUG("  pos = [%f,%f,%f]", trans.getOrigin().x(), trans.getOrigin().y(), trans.getOrigin().z());
+        ROS_DEBUG("  yaw = %f", tf::getYaw(trans.getRotation()));
+    }
 
     void getCurrentPosition(geometry_msgs::Point *pos, float *yaw)
     {
@@ -983,42 +1038,42 @@ protected:
         geometry_msgs::Point end_point;
 
         for (int i=0;i<5;i++){
-        getDist_srv.request.point=direction;
-        getDist_srv.request.point.header.stamp = ros::Time::now();
-        getDist_srv.request.point.header.frame_id="base_link";
+            getDist_srv.request.point=direction;
+            getDist_srv.request.point.header.stamp = ros::Time::now();
+            getDist_srv.request.point.header.frame_id="base_link";
 
-        getDist_client.call(getDist_srv);
-        float dis=getDist_srv.response.distance;
-        distances.push_back(dis);
-        std::cout <<" distance to wall:" <<dis <<std::endl;
-        if (i==0){
-        direction.point.x=direction.point.x+0.5;}
-        else if (i==1){
-        direction.point.x=direction.point.x-1.0;
-        }
-        else if (i==2){
-        direction.point.x=direction.point.x+0.5;
-        direction.point.y=direction.point.y+0.5;
-        }
-        else if (i==3){
-        direction.point.y=direction.point.y-1.0;
-        }
+            getDist_client.call(getDist_srv);
+            float dis=getDist_srv.response.distance;
+            distances.push_back(dis);
+            std::cout <<" distance to wall:" <<dis <<std::endl;
+            if (i==0){
+                direction.point.x=direction.point.x+0.5;}
+            else if (i==1){
+                direction.point.x=direction.point.x-1.0;
+            }
+            else if (i==2){
+                direction.point.x=direction.point.x+0.5;
+                direction.point.y=direction.point.y+0.5;
+            }
+            else if (i==3){
+                direction.point.y=direction.point.y-1.0;
+            }
 
 
-       float diffx= direction.point.x-my_pos.x;
-       float diffy= direction.point.y-my_pos.y;
+            float diffx= direction.point.x-my_pos.x;
+            float diffy= direction.point.y-my_pos.y;
 
-       float norm_factor=sqrt(diffx*diffx+diffy*diffy);
+            float norm_factor=sqrt(diffx*diffx+diffy*diffy);
 
-       float norm_x=diffx*(1/norm_factor);
-       float norm_y=diffy*(1/norm_factor);
+            float norm_x=diffx*(1/norm_factor);
+            float norm_y=diffy*(1/norm_factor);
 
-       end_point.x=my_pos.x+dis*norm_x;
-       end_point.y=my_pos.y+dis*norm_y;
-       end_point.z=point.point.z;
+            end_point.x=my_pos.x+dis*norm_x;
+            end_point.y=my_pos.y+dis*norm_y;
+            end_point.z=point.point.z;
 
-        end_points.push_back(end_point);
-        directions.push_back(direction.point);
+            end_points.push_back(end_point);
+            directions.push_back(direction.point);
 
 
         }
@@ -1061,7 +1116,7 @@ protected:
         for (int i=0;i<end_points.size();i++){
             if(sqrt((point.point.x-end_points[i].x)*(point.point.x-end_points[i].x)+(point.point.y-end_points[i].y)*(point.point.y-end_points[i].y))<1){
                 regress_points.push_back(end_points[i]);
-        }
+            }
         }
 
         std::vector<geometry_msgs::Point> regress_points_no_duplicate_x;
@@ -1082,50 +1137,50 @@ protected:
 
         float b;
         if (regress_points_no_duplicate_x.size()>1){
-        // calculate the slope of the wall line
-        float sumx=0;
-        float sumy=0;
-        float sumxy=0;
-        float sumxx=0;
-        for (int i=0;i<regress_points_no_duplicate_x.size();i++){
-            sumx=sumx+regress_points_no_duplicate_x[i].x;
-            sumy=sumy+regress_points_no_duplicate_x[i].y;
-        }
-        float meanx=sumx/regress_points_no_duplicate_x.size();
-        float meany=sumy/regress_points_no_duplicate_x.size();
-
-        for (int i=0;i<regress_points_no_duplicate_x.size();i++){
-            sumxy=sumxy+(regress_points_no_duplicate_x[i].x-meanx)*(regress_points_no_duplicate_x[i].y-meany);
-            sumxx=sumxx+(regress_points_no_duplicate_x[i].x-meanx)*(regress_points_no_duplicate_x[i].x-meany);
-        }
-
-        float m=sumxy/sumxx;
-        b=meany-m*meanx;
-
-        // line is parallel to x-axis, need to treat this special
-        if (abs(m)<0.01){
-            b=meany-m*meanx;
-            normal_slope_x=0;
-
-            if (my_pos.y>point.point.y){
-            normal_slope_y=1;}
-            else{
-               normal_slope_y=-1;
+            // calculate the slope of the wall line
+            float sumx=0;
+            float sumy=0;
+            float sumxy=0;
+            float sumxx=0;
+            for (int i=0;i<regress_points_no_duplicate_x.size();i++){
+                sumx=sumx+regress_points_no_duplicate_x[i].x;
+                sumy=sumy+regress_points_no_duplicate_x[i].y;
             }
-        }
+            float meanx=sumx/regress_points_no_duplicate_x.size();
+            float meany=sumy/regress_points_no_duplicate_x.size();
 
-         else{
-        normal_slope_x=1;
-         normal_slope_y=-1/m; }
-         std::cout <<"m:" <<std::endl;
-         ROS_INFO_STREAM(m);
+            for (int i=0;i<regress_points_no_duplicate_x.size();i++){
+                sumxy=sumxy+(regress_points_no_duplicate_x[i].x-meanx)*(regress_points_no_duplicate_x[i].y-meany);
+                sumxx=sumxx+(regress_points_no_duplicate_x[i].x-meanx)*(regress_points_no_duplicate_x[i].x-meany);
+            }
+
+            float m=sumxy/sumxx;
+            b=meany-m*meanx;
+
+            // line is parallel to x-axis, need to treat this special
+            if (abs(m)<0.01){
+                b=meany-m*meanx;
+                normal_slope_x=0;
+
+                if (my_pos.y>point.point.y){
+                    normal_slope_y=1;}
+                else{
+                    normal_slope_y=-1;
+                }
+            }
+
+            else{
+                normal_slope_x=1;
+                normal_slope_y=-1/m; }
+            std::cout <<"m:" <<std::endl;
+            ROS_INFO_STREAM(m);
 
         }
 
         // line is parallel to y-axis need to treat this special
         else{
             if (my_pos.x>point.point.x){
-            normal_slope_x=1;}
+                normal_slope_x=1;}
             else{
                 normal_slope_x=-1;
             }
@@ -1133,7 +1188,7 @@ protected:
             b= regress_points_no_duplicate_x[0].y;
 
         }
-std::cout <<"normal_slope_x:" <<std::endl;
+        std::cout <<"normal_slope_x:" <<std::endl;
         ROS_INFO_STREAM(normal_slope_x);
         std::cout <<"normal_slope_y:" <<std::endl;
         ROS_INFO_STREAM(normal_slope_y);
@@ -1142,32 +1197,32 @@ std::cout <<"normal_slope_x:" <<std::endl;
         if (m_marker_normal.getNumSubscribers() > 0  ){
 
 
-                visualization_msgs::MarkerArray marker_array;
-                visualization_msgs::Marker marker;
-                marker.header.stamp = point.header.stamp;
-                marker.header.frame_id = point.header.frame_id;
-                marker.type = visualization_msgs::Marker::LINE_LIST;
-                marker.action = visualization_msgs::Marker::ADD;
-                marker.color.r= 1.0;
-                marker.color.a = 1.0;
-                marker.scale.x = 0.02;
-                marker.ns ="";
-                marker.action = visualization_msgs::Marker::ADD;
-                marker.pose.orientation.w = 1.0;
+            visualization_msgs::MarkerArray marker_array;
+            visualization_msgs::Marker marker;
+            marker.header.stamp = point.header.stamp;
+            marker.header.frame_id = point.header.frame_id;
+            marker.type = visualization_msgs::Marker::LINE_LIST;
+            marker.action = visualization_msgs::Marker::ADD;
+            marker.color.r= 1.0;
+            marker.color.a = 1.0;
+            marker.scale.x = 0.02;
+            marker.ns ="";
+            marker.action = visualization_msgs::Marker::ADD;
+            marker.pose.orientation.w = 1.0;
 
-                std::vector<geometry_msgs::Point> point_vector;
-                geometry_msgs::Point p1;
+            std::vector<geometry_msgs::Point> point_vector;
+            geometry_msgs::Point p1;
 
-                    point_vector.push_back(point.point);
-                    p1.x=point.point.x+1*normal_slope_x;
-                    p1.y=point.point.y+1*normal_slope_y;
-                    p1.z=point.point.z;
-                    point_vector.push_back(p1);
+            point_vector.push_back(point.point);
+            p1.x=point.point.x+1*normal_slope_x;
+            p1.y=point.point.y+1*normal_slope_y;
+            p1.z=point.point.z;
+            point_vector.push_back(p1);
 
-                marker.points=point_vector;
-                marker_array.markers.push_back(marker);
-                m_marker_normal.publish(marker_array);
-            }
+            marker.points=point_vector;
+            marker_array.markers.push_back(marker);
+            m_marker_normal.publish(marker_array);
+        }
 
 
 
@@ -1187,8 +1242,8 @@ private:
     ros::Publisher cmdVelPublisher;
     ros::Publisher messagePublisher;
 
-     ros::Publisher m_marker_points;
-     ros::Publisher m_marker_normal;
+    ros::Publisher m_marker_points;
+    ros::Publisher m_marker_normal;
 
     ros::Subscriber modelSubscriber;
     ros::Subscriber ballInGrabberSubscriber;
@@ -1211,16 +1266,18 @@ private:
     std::string          _nearest_id;
     geometry_msgs::Point _nearest_pos;
 
+    tf::TransformBroadcaster br;
 
     bool _run;
     bool _has_cargo;
     int _number_objects;
     hector_worldmodel_msgs::ObjectModelConstPtr objects;
-   // std::string current_drive_target;
+    // std::string current_drive_target;
     hector_worldmodel_msgs::Object current_target;
     hector_worldmodel_msgs::Object first_load_station;
     double explor_dist_wall;
     double exploration_circle_radius;
+    double exploration_error_dis_wall_threshold;
 
     enum State {
         STATE_IDLE,
@@ -1245,8 +1302,8 @@ private:
             return "STATE_START";
         case STATE_STOP:
             return "STATE_STOP";
-//        case STATE_DRIVE_1m:
-//            return "STATE_DRIVE_1m";
+            //        case STATE_DRIVE_1m:
+            //            return "STATE_DRIVE_1m";
         case STATE_DRIVE_TO_FIRST_LOAD_STATION:
             return "STATE_DRIVE_TO_FIRST_LOAD_STATION";
         case STATE_DRIVE_TO_LOAD_STATION:
@@ -1258,7 +1315,7 @@ private:
         case STATE_DRIVE_TO_UNLOAD_STATION:
             return "STATE_DRIVE_TO_UNLOAD_STATION";
         case STATE_POSITIONING:
-        return "STATE_POSITIONING";
+            return "STATE_POSITIONING";
         case STATE_EXPLORATION:
             return "STATE_EXPLORATION";
         case STATE_UNLOAD_CARGO:
@@ -1309,11 +1366,11 @@ private:
 
     void objectsCb(const hector_worldmodel_msgs::ObjectModelConstPtr& objectModel)
     {
-    _number_objects = objectModel->objects.size();
-    objects=objectModel;
-    //ROS_INFO("in objects cb. Size: %d", _number_objects);
+        _number_objects = objectModel->objects.size();
+        objects=objectModel;
+        //ROS_INFO("in objects cb. Size: %d", _number_objects);
 
-   /* std::string          new_id;
+        /* std::string          new_id;
     float                new_dist = FLT_MAX;
     geometry_msgs::Point new_pos;
 
