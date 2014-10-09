@@ -416,8 +416,8 @@ int main(int argc, char** argv)
     ros::init(argc, argv, "plane_detector");
     ros::NodeHandle nh_;
 
-    nh_.param("~wall_distance", wall_distance, 2.0);
-    nh_.param("~plane_height", plane_height, 1.0);
+    nh_.getParam("wall_distance", wall_distance);
+    nh_.getParam("plane_height", plane_height);
 
     ROS_INFO("Using Wall distance: %f", wall_distance);
     ROS_INFO("Using Plane height: %f", plane_height);
