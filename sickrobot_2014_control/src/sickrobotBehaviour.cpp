@@ -64,10 +64,14 @@ public:
         modelSubscriber = worldmodel.subscribe("objects", 10, &sickrobot_behaviour::objectsCb, this);
 
 
-        ros::NodeHandle sick_nh(std::string("sickrobot"));
-        startMission = sick_nh.advertiseService("start_mission", &sickrobot_behaviour::startMissionCb, this);
-        m_marker_points = sick_nh.advertise<visualization_msgs::MarkerArray>("endpoints", 1, false);
-        m_marker_normal = sick_nh.advertise<visualization_msgs::MarkerArray>("normal", 1, false);
+        ros::NodeHandle sick_nh(std::string("~"));
+        startMission = sick_nh.advertiseService("/sickrobot/start_mission", &sickrobot_behaviour::startMissionCb, this);
+        m_marker_points = sick_nh.advertise<visualization_msgs::MarkerArray>("/sickrobot/endpoints", 1, false);
+        m_marker_normal = sick_nh.advertise<visualization_msgs::MarkerArray>("/sickrobot/normal", 1, false);
+        sick_nh.param("drive_to_first_blind_distance", drive_to_first_blind_distance, 0.5);
+        sick_nh.param("exploration_dist_wall", explor_dist_wall, 1.0);
+        sick_nh.param("exploration_circle_radius", exploration_circle_radius, 6.0);
+        sick_nh.param("exploration_error_dis_wall_threshold", exploration_error_dis_wall_threshold, 0.1);
 
         getDist_client = root.serviceClient<hector_nav_msgs::GetDistanceToObstacle>("hector_map_server/get_distance_to_obstacle");
 
@@ -357,21 +361,11 @@ protected:
             getCurrentPosition(&my_pos, &my_yaw);
             float offset_error;
             offset_error=(std::abs(my_pos.x- current_target.pose.pose.position.x)-dist_wall);
-            std::cout << "ofset error " <<offset_error<<std::endl;
+            //std::cout << "ofset error " <<offset_error<<std::endl;
 
-            std::cout << "my pos " << my_pos.x<<  "   target " <<current_target.pose.pose.position.x <<" norm  "<<0.25*normal_slope_x<<std::endl;
-            //std::cout << " dist to target " << abs((my_pos.x- current_target.pose.pose.position.x)+(0.2*normal_slope_x)) << std::endl;
-            std::cout << " dist to target " << std::abs(my_pos.x- current_target.pose.pose.position.x)+0.25*normal_slope_x-offset_error << std::endl;
-            //std::cout << " dist to target " << ((my_pos.x- current_target.pose.pose.position.x)+(0.2*normal_slope_x)) << std::endl;
-            //                              getPoint(targetPosMap, "/base_link", "/map", targetPosBaseLink);
-
-            //                               //      float targetAngle = std::atan2(targetPosBaseLink.y , targetPosBaseLink.x);
-            //                               //      approachBallGetCurVelData(&angle, &dist);
-            //                               float dist = getEuclidDist(targetPosBaseLink.x, targetPosBaseLink.y);
-            //                               ROS_DEBUG("adjustTranslation dist: %f", dist);
-
-            //                               int loopIters = 0;
-            while (((std::abs(my_pos.x- current_target.pose.pose.position.x)+0.25*normal_slope_x-offset_error)>0.05)){
+           // std::cout << "my pos " << my_pos.x<<  "   target " <<current_target.pose.pose.position.x <<" norm  "<<0.25*normal_slope_x<<std::endl;
+           std::cout << " dist to target " << std::abs(my_pos.x- current_target.pose.pose.position.x)+0.25*normal_slope_x-offset_error << std::endl;
+              while (((std::abs(my_pos.x- current_target.pose.pose.position.x)+0.25*normal_slope_x-offset_error)>0.05)){
                 //        if (dist > 0.5)
                 //          dist = 0.5;
 
@@ -670,7 +664,26 @@ protected:
                 ROS_INFO("That was bad, we didn't reach our goal");
             }
             // }
+
+            for (int i=0;i< objects->objects.size();i++){
+                hector_worldmodel_msgs::Object object = objects->objects[i];
+                std::stringstream sstr;
+                sstr << object.info.name;
+                int curr_number_unload_station;
+                sstr >> curr_number_unload_station;
+                if ((object.info.class_id=="unload_station")&&(present_holzklotz==curr_number_unload_station)){
+                    is_known=true;
+                }
+
+            }
+
             phi=phi+10;
+
+            // just for testing need to remove this!!!!!
+            if (phi==20){
+                is_known=true;
+            }
+
         }
         _state=STATE_DRIVE_TO_UNLOAD_STATION;
     }
@@ -679,39 +692,52 @@ protected:
 
         //think about station could be blocked here !!!! Add some wait state
         ROS_INFO("state: drive_to_unload_station");
-        move_base_msgs::MoveBaseGoal station;
 
-        station.target_pose.header.frame_id = "map";
-        station.target_pose.header.stamp = ros::Time::now();
+        ROS_INFO("state: positioning");
+        geometry_msgs::PointStamped point;
+        point.point=current_target.pose.pose.position;
 
 
+        //for testing purpose -> remeber to remove this !!!!!!!!!!!!!!!!!!!
+        point.point.x=-0.75;
+        point.point.y=0.0;
+        point.point.z=0.0;
+
+        point.header.frame_id=current_target.header.frame_id;
+        point.header.stamp=current_target.header.stamp;
+        float normal_slope_x;
+        float normal_slope_y;
+        //mayb need to transform point to baselink first !!!!
+        getNormal(point,normal_slope_x,normal_slope_y);
         geometry_msgs::Point my_pos;
         float                my_yaw;
 
         getCurrentPosition(&my_pos, &my_yaw);
-        station.target_pose.pose.position.x = my_pos.x +0.50; //TODO use pose from worldmodel
-        station.target_pose.pose.position.y = my_pos.y;
-        station.target_pose.pose.position.z = my_pos.z;
+        move_base_msgs::MoveBaseGoal goal;
+        goal.target_pose.header.frame_id = "map";
+        goal.target_pose.header.stamp = ros::Time::now();
 
-        station.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(my_yaw);
+        float dist_wall=1.0;
+        goal.target_pose.pose.position.x = current_target.pose.pose.position.x+dist_wall*normal_slope_x;
+        goal.target_pose.pose.position.y = current_target.pose.pose.position.y+dist_wall*normal_slope_y;
+        goal.target_pose.pose.position.z = my_pos.z;
+        std::cout<< " yaw for position " <<(atan2(normal_slope_y,normal_slope_x)/M_PI)*180<<std::endl;
+        goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(M_PI+atan2(normal_slope_y,normal_slope_x));
 
-        while (_state == STATE_DRIVE_TO_UNLOAD_STATION) {
+        ROS_INFO("Sending goal");
+        mbClient->sendGoal(goal);
 
-            ROS_INFO("Sending goal");
-            mbClient->sendGoal(station);
+        mbClient->waitForResult();
 
-            mbClient->waitForResult();
-
-            if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
-                ROS_INFO("Great we reached the goal");
-
-                // setState(STATE_STOP);
-                _state=STATE_POSITIONING;
-                return;
-            } else {
-                ROS_INFO("That was bad, we didn't reach our goal");
-            }
+        if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+            ROS_INFO("Great we reached the goal");
         }
+
+        else {
+            ROS_INFO("That was bad, we didn't reach our goal");
+        }
+
+
     }
 
     void unload_cargo_task(){
@@ -1275,6 +1301,7 @@ private:
     // std::string current_drive_target;
     hector_worldmodel_msgs::Object current_target;
     hector_worldmodel_msgs::Object first_load_station;
+    double drive_to_first_blind_distance;
     double explor_dist_wall;
     double exploration_circle_radius;
     double exploration_error_dis_wall_threshold;
