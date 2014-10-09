@@ -40,9 +40,6 @@
     <remap from="imu/raw" to="mobile_base/sensors/imu_data_raw" />
   </node>
 
-  <!-- Enable breaker 1 for the kinect -->
-  <!--node pkg="create_node" type="kinect_breaker_enabler.py" name="kinect_breaker_enabler"/-->
-
   <!-- The odometry estimator -->
 
   <node pkg="robot_pose_ekf" type="robot_pose_ekf" name="robot_pose_ekf">
@@ -69,5 +66,12 @@
     <arg name="battery" value="$(arg battery)" />
   </include>
   -->
+  <!-- Barcode Scanner -->
+  <include file="$(find sickrobot_2014_matrix_connector)/launch/matrix_connector.launch">
+  </include>
+
+  <!-- Blinky -->
+  <include file="$(find sickrobot_2014_blinky)/launch/blinky.launch">
+  </include>
 
 </launch>
