@@ -45,6 +45,8 @@
 
 #include <hector_worldmodel_msgs/PosePercept.h>
 
+#include <sstream>
+
 
 typedef pcl::PointXYZ PointT;
 
@@ -76,11 +78,10 @@ void filterHeight(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud){
     pcl::PointCloud<PointT>::Ptr cloud_filtered (new pcl::PointCloud<PointT>);
 
     pcl::PassThrough<PointT> no_ground_pass;
-    no_ground_pass.setFilterLimitsNegative (false);
 
     no_ground_pass.setInputCloud (cloud);
     no_ground_pass.setFilterFieldName ("y");
-    no_ground_pass.setFilterLimits (plane_height, plane_height + 1.0);
+    no_ground_pass.setFilterLimits (-6.0 , plane_height);
 
     no_ground_pass.filter (*cloud_filtered);
 
@@ -106,7 +107,7 @@ bool segmentDigitPlane(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, boos
     seg.setMethodType (pcl::SAC_RANSAC);
     seg.setDistanceThreshold (0.03);
 
-    seg.setAxis(Eigen::Vector3f(0.0,0.0,1.0)); //Parallel to view point
+    seg.setAxis(Eigen::Vector3f(0.0, 0.34,0.9)); //Parallel to view point
     seg.setEpsAngle( 0.2 ); //With 20 degree difference
 
     seg.setInputCloud (cloud);
@@ -261,8 +262,11 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
 
     boost::shared_ptr< pcl::PointCloud<PointT> > cloud(new pcl::PointCloud<PointT>);
     pcl::fromROSMsg(*pc_msg, *cloud);
+    ROS_INFO("Original: %d", cloud->size());
     filterDepth(cloud);
+    ROS_INFO("Depth: %d", cloud->size());
     filterHeight(cloud);
+    ROS_INFO("Height: %d", cloud->size());
     sensor_msgs::PointCloud2 filterd_msg;
     pcl::toROSMsg(*cloud, filterd_msg);
     plane_pub.publish(filterd_msg);
@@ -386,23 +390,28 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
 
     image_pub.publish(new_msg);
 
-    if(digit_service.call(image2digit) && image2digit.response.digit >= 0){
-        ROS_INFO("Number found: %d", image2digit.response.digit);
-        hector_worldmodel_msgs::PosePercept percept;
-        percept.header = pc_msg->header;
-        percept.info.class_id = "unload_fiducial";
-        percept.info.class_support = 1.0;
+    if(digit_service.call(image2digit)){
+	if(image2digit.response.digit >= 0){
+		ROS_INFO("Number found: %d", image2digit.response.digit);
+		hector_worldmodel_msgs::PosePercept percept;
+		percept.header = pc_msg->header;
+		percept.info.class_id = "unload_fiducial";
+		percept.info.class_support = 1.0;
 
-        percept.info.object_support = 1.0;
-        percept.info.name = "bla";
+		percept.info.object_support = 0.01;
+		std::stringstream sstr;
+		sstr << image2digit.response.digit;
+		sstr >> percept.info.name;
 
-        percept.pose.pose.position.x = plane_rect[0].x();
-        percept.pose.pose.position.y = plane_rect[0].y();
-        percept.pose.pose.position.z = plane_rect[0].z();
+		percept.pose.pose.position.x = plane_rect[0].x();
+		percept.pose.pose.position.y = plane_rect[0].y();
+		percept.pose.pose.position.z = plane_rect[0].z();
 
-        //percept.pose.pose.orientation = Quaternion(0,0,0,1);
-        percept_publisher_.publish(percept);
-
+		percept.pose.pose.orientation = tf::createQuaternionMsgFromYaw(0);
+		percept_publisher_.publish(percept);
+	}else{
+		ROS_INFO("No Number found");
+	}
     }else{
         ROS_ERROR("Service call failed");
     }
@@ -431,7 +440,7 @@ int main(int argc, char** argv)
     image_pub = nh_.advertise<sensor_msgs::Image>("/plane_image",1);
     poly_pub = nh_.advertise<geometry_msgs::PolygonStamped>("/digit_plane_poly",1);
     plane_pub = nh_.advertise<sensor_msgs::PointCloud2>("/plane", 1);
-    percept_publisher_ = nh_.advertise<hector_worldmodel_msgs::PosePercept>("pose_percept", 1);
+    percept_publisher_ = nh_.advertise<hector_worldmodel_msgs::PosePercept>("/worldmodel/pose_percept", 1);
 
     image_transport::SubscriberFilter image_sub;
     message_filters::Subscriber<sensor_msgs::CameraInfo> info_sub;
@@ -443,7 +452,7 @@ int main(int argc, char** argv)
     pc_sub.subscribe(nh_, "/camera/depth/points", 1);
     sync_.registerCallback(boost::bind(&callback, _1, _2, _3));
 
-    digit_service = nh_.serviceClient<hector_digit_detection_msgs::Image2Digit>("image2digit");
+    digit_service = nh_.serviceClient<hector_digit_detection_msgs::Image2Digit>("/image2digit");
 
     ros::spin();
 

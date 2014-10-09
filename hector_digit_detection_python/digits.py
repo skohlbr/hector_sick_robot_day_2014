@@ -29,7 +29,7 @@ def image2digit_service(data):
     image2 = cv2.resize(image2, (int(w2 * (target_height / h2)), int(target_height)))
 
     h2,w2 = image2.shape[:2]
-    image2 = image2[:h2,:w2-15]
+    image2 = image2[:h2,:w2-0]
     h2,w2 = image2.shape[:2]
     image2 = cv2.adaptiveThreshold(image2, 255, 1, cv2.THRESH_BINARY, 11, 2)
 
