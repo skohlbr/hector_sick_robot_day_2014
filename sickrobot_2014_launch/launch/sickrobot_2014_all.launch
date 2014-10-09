@@ -3,19 +3,10 @@
 <launch>
 
     <include file="$(find hector_turtlebot_gazebo)/launch/start_in_sick_robot_day_2014_world.launch" />
-    <include file="$(find hector_turtlebot_navigation)/launch/gmapping.launch" />
     <!--<include file="$(find hector_turtlebot_navigation)/launch/hector_mapping.launch" />-->
-    <include file="$(find sickrobot_2014_control)/launch/sick_robot_2014_behavior.launch" />
 
+    <include file="$(find sickrobot_2014_launch)/launch/bring_up_common.launch" />
 
-    <include file="$(find hector_object_tracker)/launch/object_tracker_sick_robot_day_2014.launch" />
-    
-    <include file="$(find sickrobot_2014_target_detection)/launch/detect_forward_cam.launch" />
-    
-    <node pkg="hector_map_server" type="hector_map_server" name="hector_map_server" output="screen" respawn="true">
-    </node>
-
-    
     <!--
     We don´t need octomap, so don´t use it for now (SK)
     <include file="$(find hector_octomap_server)/launch/octomap_server_hector_ugv.launch" />
