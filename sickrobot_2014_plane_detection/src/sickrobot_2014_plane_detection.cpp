@@ -55,6 +55,9 @@ ros::Publisher percept_publisher_;
 tf::TransformListener* listener;
 ros::ServiceClient digit_service;
 
+double wall_distance = 0.0;
+double plane_height = 0.0;
+
 void filterDepth(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud){
     pcl::PointCloud<PointT>::Ptr cloud_filtered (new pcl::PointCloud<PointT>);
 
@@ -62,7 +65,7 @@ void filterDepth(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud){
 
     no_ground_pass.setInputCloud (cloud);
     no_ground_pass.setFilterFieldName ("z");
-    no_ground_pass.setFilterLimits (0.1, 1.4); //TODO tune with wall distance
+    no_ground_pass.setFilterLimits (wall_distance - 1.0, wall_distance + 1.0);
 
     no_ground_pass.filter (*cloud_filtered);
 
@@ -77,7 +80,7 @@ void filterHeight(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud){
 
     no_ground_pass.setInputCloud (cloud);
     no_ground_pass.setFilterFieldName ("y");
-    no_ground_pass.setFilterLimits (0, 1);
+    no_ground_pass.setFilterLimits (plane_height, plane_height + 2.0);
 
     no_ground_pass.filter (*cloud_filtered);
 
@@ -116,6 +119,10 @@ bool segmentDigitPlane(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, boos
     eifilter.filter (*cloud_filtered);
 
     ROS_INFO("Filtering done");
+
+    if(inliers->indices.size() < 100){
+        return false;
+    }
 
 
     //----------------- Filter out spurious stuff in the environment (Assume table is largest cluster) -----------
@@ -259,7 +266,7 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
     pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
     pcl::PointCloud<pcl::PointXYZ>::Ptr convex_hull (new pcl::PointCloud<pcl::PointXYZ>);
     if(!segmentDigitPlane(cloud, cloud_plane, coefficients, convex_hull)){
-        ROS_ERROR("Segmentation failed");
+        ROS_DEBUG("Segmentation failed");
         return;
     }
     const std::vector<Eigen::Vector3f> plane_rect = getPlaneRectangle(cloud_plane, coefficients);
@@ -374,7 +381,7 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
 
     image_pub.publish(new_msg);
 
-    if(digit_service.call(image2digit)){
+    if(digit_service.call(image2digit) && image2digit.response.digit >= 0){
         ROS_INFO("Number found: %d", image2digit.response.digit);
         hector_worldmodel_msgs::PosePercept percept;
         percept.header = pc_msg->header;
@@ -403,6 +410,9 @@ int main(int argc, char** argv)
 
     ros::init(argc, argv, "plane_detector");
     ros::NodeHandle nh_;
+
+    nh_.param("wall_distance", wall_distance, 2.0);
+    nh_.param("plane_height", plane_height, 1.0);
 
     image_transport::ImageTransport it_(nh_);
 
