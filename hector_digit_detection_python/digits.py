@@ -18,7 +18,7 @@ image1 = numpy.zeros((1,1,3), numpy.uint8)
 image3 = numpy.zeros((1,1,3), numpy.uint8)
 
 def image2digit_service(data):
-    print 'Executing image2digit service ...'
+    #print 'Executing image2digit service ...'
 
     bridge = CvBridge()
     image2 = bridge.imgmsg_to_cv2(data.data)
@@ -38,9 +38,6 @@ def image2digit_service(data):
     #image2_[:h2, w2:w2+w2] = image2
     #image2 = image2_
 
-    #cv2.imshow('image2', image2)
-    #cv2.waitKey(0)
-
     h1,w1 = image1.shape[:2]
     h2,w2 = image2.shape[:2]
     h3,w3 = image3.shape[:2]
@@ -56,12 +53,12 @@ def image2digit_service(data):
     cv2.imwrite(fp + '/img.jpg', image_full)
     args = ('tesseract', fp + '/img.jpg', fp + '/tessout', '-l', 'eng', '-psm', '7')
 
-    print 'Launching tesseract ...'
+    #print 'Launching tesseract ...'
     popen = subprocess.Popen(args, stdout=subprocess.PIPE)
     popen.wait()
     output = popen.stdout.read()
 
-    print 'Determing result ...'
+    #print 'Determing result ...'
     data = ''
     with open (fp + '/tessout.txt', 'r') as myfile:
         data = myfile.read()
@@ -77,7 +74,7 @@ def image2digit_service(data):
             except ValueError:
                 digit = -1
 
-    print 'Digit = %d' % (digit)
+    #print 'Digit = %d' % (digit)
     return digit, 0.0
 
 if __name__ == '__main__':
