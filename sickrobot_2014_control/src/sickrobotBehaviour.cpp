@@ -326,6 +326,7 @@ protected:
         bool found_first_load_station_target=false;
         while (!found_first_load_station_target){
             geometry_msgs::Point my_pos;
+
             float                my_yaw;
 
             getCurrentPosition(&my_pos, &my_yaw);
@@ -1170,11 +1171,11 @@ protected:
 
 
 
-    bool drive_to_goal_failure_resistent(move_base_msgs::MoveBaseGoal goal,double dirx,double diry, double dirz){
+    int drive_to_goal_failure_resistent(move_base_msgs::MoveBaseGoal goal,double dirx,double diry, double dirz){
 
-      bool sucessful=false;
+
       int failures=0;
-      while((!sucessful)||(failures>20)){
+      while(failures>20){
       goal.target_pose.header.frame_id = "map";
 
 
@@ -1190,10 +1191,11 @@ protected:
 
       if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
           ROS_INFO("Great we reached the goal");
-          sucessful=true;
+
 
           // setState(STATE_STOP);
-          return true;
+
+          return failures;
       }
 
       else {
@@ -1202,7 +1204,7 @@ protected:
       }
 
       }
-      return false;
+      return -1;
 
 
 
