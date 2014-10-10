@@ -65,6 +65,7 @@ public:
         m_marker_points = sick_nh.advertise<visualization_msgs::MarkerArray>("/sickrobot/endpoints", 1, false);
         m_marker_normal = sick_nh.advertise<visualization_msgs::MarkerArray>("/sickrobot/normal", 1, false);
         sick_nh.param("distance_to_wall_first_drive", distance_to_wall_first_drive, 0.5);
+        sick_nh.param("cmd_vel_distance_to_wall", cmd_vel_distance_to_wall, 0.25);
         sick_nh.param("exploration_dist_wall", explor_dist_wall, 1.0);
         sick_nh.param("exploration_circle_radius", exploration_circle_radius, 6.0);
         sick_nh.param("exploration_error_dis_wall_threshold", exploration_error_dis_wall_threshold, 0.1);
@@ -415,13 +416,13 @@ protected:
             //std::cout << "ofset error " <<offset_error<<std::endl;
 
            // std::cout << "my pos " << my_pos.x<<  "   target " <<current_target.pose.pose.position.x <<" norm  "<<0.25*normal_slope_x<<std::endl;
-           std::cout << " dist to target " << std::abs(my_pos.x- current_target.pose.pose.position.x)+0.25*normal_slope_x-offset_error << std::endl;
-              while (((std::abs(my_pos.x- current_target.pose.pose.position.x)+0.25*normal_slope_x-offset_error)>0.05)){
+           std::cout << " dist to target " << std::abs(my_pos.x- current_target.pose.pose.position.x)+cmd_vel_distance_to_wall*normal_slope_x-offset_error << std::endl;
+              while (((std::abs(my_pos.x- current_target.pose.pose.position.x)+cmd_vel_distance_to_wall*normal_slope_x-offset_error)>0.05)){
                 //        if (dist > 0.5)
                 //          dist = 0.5;
 
 
-                  std::cout << " dist to target " << std::abs(my_pos.x- current_target.pose.pose.position.x)+0.25*normal_slope_x-offset_error << std::endl;
+                  std::cout << " dist to target " << std::abs(my_pos.x- current_target.pose.pose.position.x)+cmd_vel_distance_to_wall*normal_slope_x-offset_error << std::endl;
 
                 cmdVelTwist.linear.x = 0.1;
 
@@ -1392,6 +1393,7 @@ private:
     hector_worldmodel_msgs::Object first_load_station;
     double distance_to_wall_first_drive;
     double explor_dist_wall;
+    double cmd_vel_distance_to_wall;
     double exploration_circle_radius;
     double exploration_error_dis_wall_threshold;
     double exploration_distance_mp_start;
