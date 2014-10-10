@@ -13,6 +13,8 @@
 #include <sickrobot_2014_msgs/ExecuteState.h>
 #include <tf/transform_broadcaster.h>
 #include <math.h>
+#include <opencv2/core/core.hpp>
+#include <opencv/cv.h>
 
 //#include <LinearMath/btTransform.h>
 #include <tf_conversions/tf_eigen.h>
@@ -63,6 +65,9 @@ public:
         ros::NodeHandle sick_nh(std::string("~"));
         startMission = sick_nh.advertiseService("/sickrobot/start_mission", &sickrobot_behaviour::startMissionCb, this);
         m_marker_points = sick_nh.advertise<visualization_msgs::MarkerArray>("/sickrobot/endpoints", 1, false);
+        m_marker__check_points = sick_nh.advertise<visualization_msgs::MarkerArray>("/sickrobot/checkpoints", 1, false);
+        m_marker__check_points_norm = sick_nh.advertise<visualization_msgs::MarkerArray>("/sickrobot/checkpoints_norm", 1, false);
+
         m_marker_normal = sick_nh.advertise<visualization_msgs::MarkerArray>("/sickrobot/normal", 1, false);
         sick_nh.param("distance_to_wall_first_drive", distance_to_wall_first_drive, 0.5);
         sick_nh.param("cmd_vel_distance_to_wall", cmd_vel_distance_to_wall, 0.25);
@@ -732,10 +737,6 @@ protected:
 
             phi=phi+10;
 
-            // just for testing need to remove this!!!!!
-//            if (phi==20){
-//                is_known=true;
-//            }
 
         }
         _state=STATE_DRIVE_TO_UNLOAD_STATION;
@@ -752,9 +753,9 @@ protected:
 
 
         //for testing purpose -> remeber to remove this !!!!!!!!!!!!!!!!!!!
-        point.point.x=-0.75;
-        point.point.y=0.0;
-        point.point.z=0.0;
+//        point.point.x=-0.75;
+//        point.point.y=0.0;
+//        point.point.z=0.0;
 
         point.header.frame_id=current_target.header.frame_id;
         point.header.stamp=current_target.header.stamp;
@@ -1144,15 +1145,41 @@ protected:
         geometry_msgs::PointStamped direction=point_in_base_link;
         geometry_msgs::Point end_point;
 
+        ros::Time base_time;
+        base_time=ros::Time::now();
         for (int i=0;i<5;i++){
             getDist_srv.request.point=direction;
-            getDist_srv.request.point.header.stamp = ros::Time::now();
+            getDist_srv.request.point.header.stamp = base_time;
             getDist_srv.request.point.header.frame_id="base_link";
 
             getDist_client.call(getDist_srv);
             float dis=getDist_srv.response.distance;
             distances.push_back(dis);
             std::cout <<" normalen punkte: distance to wall:" <<dis <<std::endl;
+
+
+            // maybe position in base link is zero
+            float diffx= direction.point.x-my_pos_base_link.point.x;
+            float diffy= direction.point.y-my_pos_base_link.point.y;
+
+
+
+
+            std::cout <<" diff x, y :" << diffx << "," << diffy << std::endl;
+            float norm_factor=sqrt(diffx*diffx+diffy*diffy);
+
+            std::cout <<"norm_factor" << norm_factor << std::endl;
+            float norm_x=diffx*(1/norm_factor);
+            float norm_y=diffy*(1/norm_factor);
+
+            std::cout << "norm x,y" << norm_x <<","<<norm_y <<std::endl;
+            end_point.x=my_pos_base_link.point.x+dis*norm_x;
+            end_point.y=my_pos_base_link.point.y+dis*norm_y;
+            end_point.z=my_pos_base_link.point.z;
+
+            end_points.push_back(end_point);
+            directions.push_back(direction.point);
+
             if (i==0){
                 direction.point.x=direction.point.x+0.5;}
             else if (i==1){
@@ -1165,26 +1192,6 @@ protected:
             else if (i==3){
                 direction.point.y=direction.point.y-1.0;
             }
-
-            // maybe position in base link is zero
-            float diffx= direction.point.x-my_pos_base_link.point.x;
-            float diffy= direction.point.y-my_pos_base_link.point.y;
-
-
-            std::cout <<" diff x, y :" << diffx << "," << diffy << std::endl;
-            float norm_factor=sqrt(diffx*diffx+diffy*diffy);
-
-            std::cout <<"norm_factor" << norm_factor << std::endl;
-            float norm_x=diffx*(1/norm_factor);
-            float norm_y=diffy*(1/norm_factor);
-
-            end_point.x=my_pos_base_link.point.x+dis*norm_x;
-            end_point.y=my_pos_base_link.point.y+dis*norm_y;
-            end_point.z=my_pos_base_link.point.z;
-
-            end_points.push_back(end_point);
-            directions.push_back(direction.point);
-
 
 
         }
@@ -1220,130 +1227,70 @@ protected:
 
         }
 
+        if (m_marker__check_points.getNumSubscribers() > 0  ){
 
+            visualization_msgs::MarkerArray marker_array;
 
+            visualization_msgs::Marker marker;
+            marker.header.stamp = point_in_base_link.header.stamp;
+            marker.header.frame_id = point_in_base_link.header.frame_id;
+            marker.type = visualization_msgs::Marker::POINTS;
+            marker.action = visualization_msgs::Marker::ADD;
+            marker.color.b= 1.0;
+            marker.color.a = 1.0;
+            marker.scale.x = 0.05;
+            marker.scale.y = 0.05;
+            marker.scale.z = 0.05;
+            marker.ns ="";
+            marker.action = visualization_msgs::Marker::ADD;
+            marker.pose.orientation.w = 1.0;
 
-        std::vector<geometry_msgs::Point> regress_points;
-        for (int i=0;i<end_points.size();i++){
-            if(sqrt((point.point.x-end_points[i].x)*(point.point.x-end_points[i].x)+(point.point.y-end_points[i].y)*(point.point.y-end_points[i].y))<1){
-                regress_points.push_back(end_points[i]);
-            }
-        }
+            std::vector<geometry_msgs::Point> point_vector;
 
-  std::cout <<"reached end regress points of normal method" << std::endl;
-        std::vector<geometry_msgs::Point> regress_points_no_duplicate_x;
-        for (int i=0;i<regress_points.size();i++){
-            bool duplicate=false;
-            for (int j=i+1;j<regress_points.size();j++){
-                if (abs(regress_points[i].x-regress_points[j].x)<0.1){
-                    duplicate=true;
-                    break;
-                }
-            }
-            if (!duplicate){
-                regress_points_no_duplicate_x.push_back(regress_points[i]);
-            }
+            for (size_t i = 0; i < directions.size(); ++i){
 
-        }
-
-std::cout <<"reached end no duplicate points of normal method" << std::endl;
-        float b;
-        if (regress_points_no_duplicate_x.size()>1){
-            // calculate the slope of the wall line
-            float sumx=0;
-            float sumy=0;
-            float sumxy=0;
-            float sumxx=0;
-            for (int i=0;i<regress_points_no_duplicate_x.size();i++){
-                sumx=sumx+regress_points_no_duplicate_x[i].x;
-                sumy=sumy+regress_points_no_duplicate_x[i].y;
-            }
-            float meanx=sumx/regress_points_no_duplicate_x.size();
-            float meany=sumy/regress_points_no_duplicate_x.size();
-
-            for (int i=0;i<regress_points_no_duplicate_x.size();i++){
-                sumxy=sumxy+(regress_points_no_duplicate_x[i].x-meanx)*(regress_points_no_duplicate_x[i].y-meany);
-                sumxx=sumxx+(regress_points_no_duplicate_x[i].x-meanx)*(regress_points_no_duplicate_x[i].x-meany);
-            }
-std::cout <<"check 1" << std::endl;
-            float m=sumxy/sumxx;
-            b=meany-m*meanx;
-
-            // line is parallel to x-axis, need to treat this special
-            if (abs(m)<0.01){
-                ROS_INFO("line parallel to X axis");
-
-                b=meany-m*meanx;
-                normal_slope_x=0;
-
-                if (my_pos.y>point.point.y){
-                    normal_slope_y=1;}
-                else{
-                    normal_slope_y=-1;
-                }
+                point_vector.push_back(directions[i]);
             }
 
-            else{
-                normal_slope_x=1;
-                normal_slope_y=-1/m;
+            point_vector.push_back(my_pos_base_link.point);
 
-
-                geometry_msgs::PointStamped slope_in__base_link;
-                geometry_msgs::PointStamped slope_in__map;
-
-                slope_in__base_link.header.stamp=ros::Time::now();
-                slope_in__base_link.header.frame_id="base_link";
-                slope_in__base_link.point.x=normal_slope_x;
-                slope_in__base_link.point.y=normal_slope_y;
-                slope_in__base_link.point.z=0;
-
-
-                try
-                {
-                    tf_listener.transformPoint(point.header.frame_id, slope_in__base_link,slope_in__map);
-
-                }
-                catch (tf::TransformException &ex)
-                {
-                    printf ("Failure %s\n", ex.what()); //Print exception which was caught
-                   // trafo_went_wrong=true;
-                }
-
-                normal_slope_x=slope_in__map.point.x;
-                normal_slope_y=slope_in__map.point.y;
-
-                double normalization=sqrt(normal_slope_x*normal_slope_x+normal_slope_y*normal_slope_y);
-                normal_slope_x=normal_slope_x/normalization;
-                normal_slope_y=normal_slope_y/normalization;
-
-            }
-            std::cout <<"m:" <<std::endl;
-            ROS_INFO_STREAM(m);
+            marker.points=point_vector;
+            marker_array.markers.push_back(marker);
+            m_marker__check_points.publish(marker_array);
 
         }
 
-        // line is parallel to y-axis need to treat this special
-        else{
-
-            ROS_INFO("line parallel to y axis");
-            if (my_pos.x>point.point.x){
-                normal_slope_x=1;}
-            else{
-                normal_slope_x=-1;
-            }
-            normal_slope_y=0;
-
-
+        std::vector<cv::Point2f> cv_points;
+        std::cout <<" BUILD war gut"<<std::endl;
+        cv::Point2d cv_point;
+        cv::Vec4f line_result;
+        for (int i=1;i<end_points.size();i++){
+            cv_point.x=end_points[i].x;
+            cv_point.y=end_points[i].y;
+            cv_points.push_back(cv_point);
 
         }
-        std::cout <<"normal_slope_x:" <<std::endl;
-        ROS_INFO_STREAM(normal_slope_x);
-        std::cout <<"normal_slope_y:" <<std::endl;
-        ROS_INFO_STREAM(normal_slope_y);
+        cv::fitLine(cv_points,line_result,CV_DIST_L2,0,0.01,0.01);
+
+        float slope_x=line_result[0];
+        float slope_y=line_result[1];
+
+        normal_slope_x=-slope_y;
+        normal_slope_y=slope_x;
+
+        float diffx=my_pos_base_link.point.x-point_in_base_link.point.x;
+        float diffy=my_pos_base_link.point.y-point_in_base_link.point.y;
 
 
 
+        float dot_product=diffx*slope_x+diffy*slope_y;
 
+        if (dot_product<0){
+            normal_slope_x=slope_y;
+            normal_slope_y=-slope_x;
+        }
+
+        std::cout << "CV !!!!! normalx,y  "<<normal_slope_x<<","<<normal_slope_y<<std::endl;
 
         if (m_marker_normal.getNumSubscribers() > 0  ){
 
@@ -1394,6 +1341,8 @@ private:
     ros::Publisher messagePublisher;
 
     ros::Publisher m_marker_points;
+    ros::Publisher m_marker__check_points;
+    ros::Publisher m_marker__check_points_norm;
     ros::Publisher m_marker_normal;
 
     ros::Subscriber modelSubscriber;
