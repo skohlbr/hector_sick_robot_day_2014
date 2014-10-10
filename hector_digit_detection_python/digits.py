@@ -51,33 +51,7 @@ def image2digit_service(data):
         x,y,w,h = cv2.boundingRect(contours[mini])
         image2 = image2[y:y+h,x:x+w]
 
-    #print centroids
-    #print (cx, cy)
-
-
-    #for c in contours:
-    #rect = cv2.boundingRect(c)
-    #area = cv2.contourArea(c)
-    ##       imag = cv2.drawContours(
-
-#        print img
-        #largeMask = np.zeros((img.shape[0]+2, img.shape[1]+2), np.uint8)
-        #cv2.floodFill(img, largeMask)
-
-    # center of image
-
-
-    #distances = map(lambda ctr: numpy.linalg.norm((cx,cy) - ctr), centroids[1:])
-    #mini, mind = min(enumerate(distances), key=itemgetter(1))
-    #mini = mini + 1
-    #print 'Connected component with min distance %d %f' %  (mini, mind)
-
     image2 = cv2.resize(image2, (int(w2 * (target_height / h2)), int(target_height)))
-
-    #image2_ = numpy.zeros((h2,w2+w2), numpy.uint8)
-    #image2_[:h2, :w2] = image2
-    #image2_[:h2, w2:w2+w2] = image2
-    #image2 = image2_
 
     h1,w1 = image1.shape[:2]
     h2,w2 = image2.shape[:2]
