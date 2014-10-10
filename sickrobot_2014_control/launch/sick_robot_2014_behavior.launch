@@ -5,7 +5,7 @@
  <param name="cmd_vel_distance_to_wall" value="0.25"/> <!-- wie nah cmd vel bei feinpositionierung an wand dran probiert -->
  <param name="exploration_distance_mp_start " value="6.0" />  <!--wie weit der mittelpkt vom kreis vom start weg ist -->                             
                 
- <param name="exploration_circle_radius" value="6.0" />  <!--wie groß der radius von dem kreis ist wo wir explorieren-->
+ <param name="exploration_circle_radius" value="3.0" />  <!--wie groß der radius von dem kreis ist wo wir explorieren-->
  <param name="exploration_dist_wall" value="2.0" /> <!--wie weit wir bei explore von der wand weg an der wand entlang fahren -->
 
 
