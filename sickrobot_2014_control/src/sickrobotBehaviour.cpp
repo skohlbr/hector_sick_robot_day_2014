@@ -1285,35 +1285,51 @@ protected:
         float diffx=my_pos_base_link.point.x-point_in_base_link.point.x;
         float diffy=my_pos_base_link.point.y-point_in_base_link.point.y;
 
-
+       std::cout << "CV !!!!! normalx,y vor dot product "<<normal_slope_x<<","<<normal_slope_y<<std::endl;
 
         float dot_product=diffx*normal_slope_x+diffy*normal_slope_y;
 
         if (dot_product<0){
+            std::cout << "dot product kleiner null" << std::cout;
             normal_slope_x=slope_y;
             normal_slope_y=-slope_x;
         }
-
-        geometry_msgs::PointStamped slope_in__base_link;
-        geometry_msgs::PointStamped slope_in__map;
-        slope_in__base_link.header.stamp=base_time;
-        slope_in__base_link.header.frame_id="base_link";
-        slope_in__base_link.point.x=normal_slope_x;
-        slope_in__base_link.point.y=normal_slope_y;
-        slope_in__base_link.point.z=0;
-        try
-        {
-            tf_listener.transformPoint(point.header.frame_id, slope_in__base_link,slope_in__map);
+        else{
+            std::cout << "dot product größer gleich null" << std::cout;
         }
-        catch (tf::TransformException &ex)
-        {
-            printf ("Failure %s\n", ex.what()); //Print exception which was caught
-            // trafo_went_wrong=true;
-        }
-        normal_slope_x=slope_in__map.point.x;
-        normal_slope_y=slope_in__map.point.y;
 
-        std::cout << "CV !!!!! normalx,y  "<<normal_slope_x<<","<<normal_slope_y<<std::endl;
+        std::cout << "dot product " <<dot_product<< std::cout;
+        std::cout << "CV !!!!! normalx,y nach dot product "<<normal_slope_x<<","<<normal_slope_y<<std::endl;
+
+
+//        tf::StampedTransform trans;
+//        try {
+
+//            tf_listener.waitForTransform("/base_link","/map", point.header.stamp, ros::Duration(4.0));
+//            // get current position and rotation in quanternions
+//            tf_listener.lookupTransform("/base_link","/map", point.header.stamp, trans);
+//        } catch (tf::TransformException ex) {
+//            ROS_INFO("getCurrentPosition_TF_Error: %s",ex.what());
+//            return;
+//        }
+
+
+//        // get position
+////        pos->x = trans.getOrigin().x();
+////        pos->y = trans.getOrigin().y();
+////        pos->z = trans.getOrigin().z();
+
+//        // get yaw-angle
+//        float yaw = tf::getYaw(trans.getRotation());
+//        std::cout<< "!!!!!!!!!!!!!!!!!! yaw"<<yaw<<std::endl;
+//        normal_slope_x=normal_slope_x*cos(yaw)+normal_slope_y*sin(yaw);
+//        normal_slope_x=-normal_slope_x*sin(yaw)+normal_slope_y*cos(yaw);
+
+
+////        normal_slope_x=slope_in__map.point.x;
+////        normal_slope_y=slope_in__map.point.y;
+
+//        std::cout << "CV !!!!! normalx,y nach trafo "<<normal_slope_x<<","<<normal_slope_y<<std::endl;
 
         if (m_marker_normal.getNumSubscribers() > 0  ){
 
