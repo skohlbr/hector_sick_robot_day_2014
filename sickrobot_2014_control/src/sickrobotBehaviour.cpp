@@ -266,6 +266,9 @@ protected:
         //add_stations_to_worldmodel(0,0,0,"ladestation", "0", "Ladestation 0"); //Insert current position as start_position
         ROS_INFO("state: start");
 
+        mp_arena.x=exploration_distance_mp_start;
+        mp_arena.y=0;
+        mp_arena.z=0;
         _state = STATE_DRIVE_TO_FIRST_LOAD_STATION;
     }
 
@@ -369,6 +372,18 @@ protected:
         }
         current_target = objects->objects[0];
         first_load_station=objects->objects[0];
+
+        geometry_msgs::Point my_pos_now;
+        float                my_yaw_now;
+
+        getCurrentPosition(&my_pos_now, &my_yaw_now);
+
+        anfahr_goal_first_loadstation.target_pose.pose.position.x=my_pos_now.x;
+        anfahr_goal_first_loadstation.target_pose.pose.position.y=my_pos_now.y;
+        anfahr_goal_first_loadstation.target_pose.pose.position.z=my_pos_now.z;
+        anfahr_goal_first_loadstation.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(0);
+
+
         _state = STATE_POSITIONING;
     }
 
@@ -505,8 +520,9 @@ protected:
             sstr << object.info.name;
             int curr_number_unload_station;
             sstr >> curr_number_unload_station;
-            if ((object.info.class_id=="unload_station")&&(present_holzklotz==curr_number_unload_station)){
+            if ((object.info.class_id=="unload_fiducial")&&(present_holzklotz==curr_number_unload_station)){
                 station_known=true;
+                current_target=object;
             }
 
         }
@@ -536,10 +552,7 @@ protected:
         ROS_INFO("started exloration");
         bool is_known=false;
         hector_nav_msgs::GetDistanceToObstacle getDist_srv;
-        geometry_msgs::Point mp;
-        mp.x=exploration_distance_mp_start;
-        mp.y=0;
-        mp.z=0;
+
         int phi=0;
         while (!is_known){
             if (phi >= 360){
@@ -554,10 +567,10 @@ protected:
             move_base_msgs::MoveBaseGoal circle_point;
             circle_point.target_pose.header.frame_id = "map";
             circle_point.target_pose.header.stamp = ros::Time::now();
-            std::cout << " mp x" <<mp.x << "   mpy " << mp.y <<std::endl;
+            std::cout << " mp x" <<mp_arena.x << "   mpy " << mp_arena.y <<std::endl;
             std::cout << "cos x " << (exploration_circle_radius-explor_dist_wall)*cos((phi/180.0)*M_PI) <<std::endl;
             std::cout << "sin y " << (exploration_circle_radius-explor_dist_wall)*sin((phi/180.0)*M_PI) <<std::endl;
-            circle_point.target_pose.pose.position.x = mp.x-(exploration_circle_radius-explor_dist_wall)*cos((phi/180.0)*M_PI); //TODO use pose from worldmodel
+            circle_point.target_pose.pose.position.x = mp_arena.x-(exploration_circle_radius-explor_dist_wall)*cos((phi/180.0)*M_PI); //TODO use pose from worldmodel
             circle_point.target_pose.pose.position.y =(exploration_circle_radius-explor_dist_wall)*sin((phi/180.0)*M_PI);
             circle_point.target_pose.pose.position.z = my_pos.z;
 
@@ -729,8 +742,9 @@ protected:
                 sstr << object.info.name;
                 int curr_number_unload_station;
                 sstr >> curr_number_unload_station;
-                if ((object.info.class_id=="unload_station")&&(present_holzklotz==curr_number_unload_station)){
+                if ((object.info.class_id=="unload_fiducial")&&(present_holzklotz==curr_number_unload_station)){
                     is_known=true;
+                    current_target=object;
                 }
 
             }
@@ -750,6 +764,19 @@ protected:
         ROS_INFO("state: positioning");
         geometry_msgs::PointStamped point;
         point.point=current_target.pose.pose.position;
+        //try to use orientation to get driveToGoal OR try to get connection between poition and middle point.
+
+        // wir fahren erstmal da hin damit wir sichtkontakt haben, um dann die normale berechnen zu können
+        double dir_x=mp_arena.x- point.point.x;
+        double dir_y=mp_arena.y-point.point.y;
+        double normalization_factor=sqrt(dir_x*dir_x+dir_y*dir_y);
+        double dir_x_normalized=dir_x/normalization_factor;
+        double dir_y_normalized=dir_y/normalization_factor;
+
+        double dist_to_wall;
+        point.point.x=point.point.x+dir_x_normalized*dist_to_wall;
+        point.point.y=point.point.y+dir_y_normalized*dist_to_wall;
+
 
 
         //for testing purpose -> remeber to remove this !!!!!!!!!!!!!!!!!!!
@@ -759,10 +786,7 @@ protected:
 
         point.header.frame_id=current_target.header.frame_id;
         point.header.stamp=current_target.header.stamp;
-        float normal_slope_x;
-        float normal_slope_y;
-        //mayb need to transform point to baselink first !!!!
-        getNormal(point,normal_slope_x,normal_slope_y);
+
         geometry_msgs::Point my_pos;
         float                my_yaw;
 
@@ -772,11 +796,11 @@ protected:
         goal.target_pose.header.stamp = ros::Time::now();
 
         float dist_wall=1.0;
-        goal.target_pose.pose.position.x = current_target.pose.pose.position.x+dist_wall*normal_slope_x;
-        goal.target_pose.pose.position.y = current_target.pose.pose.position.y+dist_wall*normal_slope_y;
+        goal.target_pose.pose.position.x = current_target.pose.pose.position.x+dist_wall*dir_x_normalized;
+        goal.target_pose.pose.position.y = current_target.pose.pose.position.y+dist_wall*dir_y_normalized;
         goal.target_pose.pose.position.z = my_pos.z;
-        std::cout<< " yaw for position " <<(atan2(normal_slope_y,normal_slope_x)/M_PI)*180<<std::endl;
-        goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(M_PI+atan2(normal_slope_y,normal_slope_x));
+        std::cout<< " yaw for position " <<(atan2(dir_y_normalized,dir_x_normalized)/M_PI)*180<<std::endl;
+        goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(M_PI+atan2(dir_y_normalized,dir_x_normalized));
 
         ROS_INFO("Sending goal");
         mbClient->sendGoal(goal);
@@ -785,6 +809,79 @@ protected:
 
         if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
             ROS_INFO("Great we reached the goal");
+//jetzt haben wir hoffentlich sichtkontakt und berechnen dir normale zur wand nochmal über cvgetnormal,
+            //dann fahren wir dahin, mit dem generellen wand abstand zur grobpositionierung
+
+            float normal_slope_x;
+            float normal_slope_y;
+
+            getNormal(point,normal_slope_x,normal_slope_y);
+
+            move_base_msgs::MoveBaseGoal fine_goal;
+            fine_goal.target_pose.header.frame_id = "map";
+            fine_goal.target_pose.header.stamp = ros::Time::now();
+
+            float dist_wall=1.0;
+            fine_goal.target_pose.pose.position.x = current_target.pose.pose.position.x+distance_to_wall_first_drive*normal_slope_x;
+            fine_goal.target_pose.pose.position.y = current_target.pose.pose.position.y+distance_to_wall_first_drive*normal_slope_y;
+            fine_goal.target_pose.pose.position.z = my_pos.z;
+            std::cout<< " yaw for position " <<(atan2(normal_slope_y,normal_slope_x)/M_PI)*180<<std::endl;
+            fine_goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(M_PI+atan2(normal_slope_y,normal_slope_x));
+
+            mbClient->sendGoal(goal);
+
+            mbClient->waitForResult();
+
+            if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+              bool is_known=false;
+
+              geometry_msgs::Point my_pos_curr;
+              float                my_yaw_curr;
+
+              getCurrentPosition(&my_pos_curr, &my_yaw_curr);
+
+              for (int i=0;i< objects->objects.size();i++){
+                  hector_worldmodel_msgs::Object object = objects->objects[i];
+                  std::stringstream sstr;
+                  sstr << object.info.name;
+                  int curr_number_unload_station;
+                  sstr >> curr_number_unload_station;
+
+                  if (object.info.class_id=="target_fiducial"){
+                    double dist_target=sqrt((object.pose.pose.position.x-my_pos_curr.x)*(object.pose.pose.position.x-my_pos_curr.x)+(object.pose.pose.position.y-my_pos_curr.y)*(object.pose.pose.position.y-my_pos_curr.y));
+
+                    //check if there is a target in a certain radius around us NEED case we dont know this target yet!!!!
+                    if(dist_target<2.0){
+                      is_known=true;
+                      current_target=object;}
+                  }
+
+              }
+
+
+              if (is_known){
+                _state=STATE_POSITIONING;
+              }
+              else{
+                ROS_ERROR("Wir kenne das target nicht obwohl wir theoretisch grade davor stehen, wir sollten uns da noch was überlegen!!");
+              }
+
+            }
+
+            else {
+                ROS_INFO("That was bad, we didn't reach our goal");
+            }
+
+
+
+
+
+
+
+
+
+
+
         }
 
         else {
@@ -799,7 +896,7 @@ protected:
         ROS_INFO("state: unload_cargo");
         while (_has_cargo){
             if(present_holzklotz < 0){ // check if scanner sending -1 in case of no detection
-                _has_cargo=true;
+                _has_cargo=false;
                 _state = STATE_DRIVE_TO_LOAD_STATION;
                 break;
                 //set the number of current unload station
@@ -812,7 +909,52 @@ protected:
     void drive_to_load_station_task(){
         //look for next loading station, maybe choose always "our" one as other teams maybe also do this
 
-        _state=STATE_POSITIONING;
+
+      // Wir fahren immer zur ersten ladestation wenn wir noch viel langeweile haben könne wir das noch schlauer machen.
+
+      mbClient->sendGoal(anfahr_goal_first_loadstation);
+
+      mbClient->waitForResult();
+
+      if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+
+        geometry_msgs::Point my_pos_curr;
+        float                my_yaw_curr;
+
+        getCurrentPosition(&my_pos_curr, &my_yaw_curr);
+
+        for (int i=0;i< objects->objects.size();i++){
+            hector_worldmodel_msgs::Object object = objects->objects[i];
+            std::stringstream sstr;
+            sstr << object.info.name;
+            int curr_number_unload_station;
+            sstr >> curr_number_unload_station;
+
+            if (object.info.class_id=="target_fiducial"){
+              double dist_target=sqrt((object.pose.pose.position.x-my_pos_curr.x)*(object.pose.pose.position.x-my_pos_curr.x)+(object.pose.pose.position.y-my_pos_curr.y)*(object.pose.pose.position.y-my_pos_curr.y));
+
+              //check if there is a target in a certain radius around us NEED case we dont know this target yet!!!!
+              if(dist_target<2.0){
+
+                current_target=object;
+              _state=STATE_POSITIONING;
+              return;
+              }
+            }
+
+
+        }
+
+        ROS_ERROR("wir denken dass wir das target der ersten loadstation nicht kennen wir sollten uns da noch was anderes ausdenken");
+
+
+
+
+    }
+      else{
+        ROS_INFO("That was bad, we didn't reach our goal");
+      }
+
     }
 
     void drive_1m()
@@ -1429,6 +1571,10 @@ private:
     double exploration_circle_radius;
     double exploration_error_dis_wall_threshold;
     double exploration_distance_mp_start;
+
+    geometry_msgs::Point mp_arena;
+    move_base_msgs::MoveBaseGoal anfahr_goal_first_loadstation;
+
 
     enum State {
         STATE_IDLE,
