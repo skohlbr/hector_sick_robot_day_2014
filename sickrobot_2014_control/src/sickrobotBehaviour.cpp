@@ -701,7 +701,7 @@ protected:
                 if (getDist_srv.response.distance >=0){
                     if (std::abs(getDist_srv.response.distance-explor_dist_wall)>exploration_error_dis_wall_threshold){
                         geometry_msgs::PointStamped correction_point_in_EF;
-                        correction_point_in_EF.header.stamp=pub_time;
+                        correction_point_in_EF.header.stamp=ros::Time(0);
                         correction_point_in_EF.header.frame_id="exploration_goal_frame";
 
                         correction_point_in_EF.point.x=0;
@@ -1175,7 +1175,7 @@ protected:
 
 
       int failures=0;
-      while(failures>20){
+      while(failures<20){
       goal.target_pose.header.frame_id = "map";
 
 
@@ -1183,7 +1183,7 @@ protected:
       goal.target_pose.pose.position.y =goal.target_pose.pose.position.y +diry*failures ;
       goal.target_pose.pose.position.z = goal.target_pose.pose.position.z +dirz*failures;
 
-      ROS_INFO("Sending goal");
+      ROS_INFO("Sending goal from resistent");
       mbClient->sendGoal(goal);
 
       mbClient->waitForResult();
