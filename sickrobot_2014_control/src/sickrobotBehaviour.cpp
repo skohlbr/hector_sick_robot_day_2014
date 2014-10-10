@@ -1285,7 +1285,38 @@ std::cout <<"check 1" << std::endl;
 
             else{
                 normal_slope_x=1;
-                normal_slope_y=-1/m; }
+                normal_slope_y=-1/m;
+
+
+                geometry_msgs::PointStamped slope_in__base_link;
+                geometry_msgs::PointStamped slope_in__map;
+
+                slope_in__base_link.header.stamp=ros::Time::now();
+                slope_in__base_link.header.frame_id="base_link";
+                slope_in__base_link.point.x=normal_slope_x;
+                slope_in__base_link.point.y=normal_slope_y;
+                slope_in__base_link.point.z=0;
+
+
+                try
+                {
+                    tf_listener.transformPoint(point.header.frame_id, slope_in__base_link,slope_in__map);
+
+                }
+                catch (tf::TransformException &ex)
+                {
+                    printf ("Failure %s\n", ex.what()); //Print exception which was caught
+                   // trafo_went_wrong=true;
+                }
+
+                normal_slope_x=slope_in__map.point.x;
+                normal_slope_y=slope_in__map.point.y;
+
+                double normalization=sqrt(normal_slope_x*normal_slope_x+normal_slope_y*normal_slope_y);
+                normal_slope_x=normal_slope_x/normalization;
+                normal_slope_y=normal_slope_y/normalization;
+
+            }
             std::cout <<"m:" <<std::endl;
             ROS_INFO_STREAM(m);
 
@@ -1309,6 +1340,10 @@ std::cout <<"check 1" << std::endl;
         ROS_INFO_STREAM(normal_slope_x);
         std::cout <<"normal_slope_y:" <<std::endl;
         ROS_INFO_STREAM(normal_slope_y);
+
+
+
+
 
         if (m_marker_normal.getNumSubscribers() > 0  ){
 
