@@ -747,19 +747,22 @@ protected:
             // while (_state == STATE_DRIVE_TO_UNLOAD_STATION) {
 
             ROS_INFO("Sending goal");
-            mbClient->sendGoal(circle_point);
 
-            mbClient->waitForResult();
 
-            if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
-                ROS_INFO("Great we reached the goal");
+            drive_to_goal_failure_resistent(circle_point,cos(calc_yaw+M_PI)*0.2,sin(calc_yaw+M_PI)*0.2,0.0);
+//            mbClient->sendGoal(circle_point);
 
-                // setState(STATE_STOP);
-                // _state=STATE_POSITIONING;
+//            mbClient->waitForResult();
 
-            } else {
-                ROS_INFO("That was bad, we didn't reach our goal");
-            }
+//            if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+//                ROS_INFO("Great we reached the goal");
+
+//                // setState(STATE_STOP);
+//                // _state=STATE_POSITIONING;
+
+//            } else {
+//                ROS_INFO("That was bad, we didn't reach our goal");
+//            }
             // }
 
             for (int i=0;i< objects->objects.size();i++){
