@@ -1280,26 +1280,38 @@ protected:
         normal_slope_x=-slope_y;
         normal_slope_y=slope_x;
 
-
-
         float diffx=my_pos_base_link.point.x-point_in_base_link.point.x;
         float diffy=my_pos_base_link.point.y-point_in_base_link.point.y;
 
-       std::cout << "CV !!!!! normalx,y vor dot product "<<normal_slope_x<<","<<normal_slope_y<<std::endl;
+        std::cout << "normal_x,y = (" << normal_slope_x << "," << normal_slope_y << ")" << std::endl;
 
         float dot_product=diffx*normal_slope_x+diffy*normal_slope_y;
+        std::cout << "dot_product = " << dot_product << ((dot_product < 0) ? " < 0" : " > 0") << std::endl;
 
         if (dot_product<0){
-            std::cout << "dot product kleiner null" << std::cout;
             normal_slope_x=slope_y;
             normal_slope_y=-slope_x;
         }
         else{
             std::cout << "dot product größer gleich null" << std::cout;
         }
+        std::cout << "normal_x,y = (" << normal_slope_x << "," << normal_slope_y << ")" << std::endl;
 
-        std::cout << "dot product " <<dot_product<< std::cout;
-        std::cout << "CV !!!!! normalx,y nach dot product "<<normal_slope_x<<","<<normal_slope_y<<std::endl;
+        tf::StampedTransform trans;
+        try
+        {
+            tf_listener.waitForTransform("/map", "/base_link", point.header.stamp, ros::Duration(4.0));
+            tf_listener.lookupTransform("/map","/base_link", point.header.stamp, trans);
+        }
+        catch (tf::TransformException ex)
+        {
+            ROS_INFO("getNormal TF Error: %s",ex.what());
+            return;
+        }
+        float yaw = tf::getYaw(trans.getRotation());
+        std::cout<< "yaw = " << yaw<<std::endl;
+        normal_slope_x = normal_slope_x * cos(yaw) - normal_slope_y * sin(yaw);
+        normal_slope_y = normal_slope_x * sin(yaw) + normal_slope_y * cos(yaw);
 
 
 //        tf::StampedTransform trans;
@@ -1360,9 +1372,6 @@ protected:
             marker_array.markers.push_back(marker);
             m_marker_normal.publish(marker_array);
         }
-
-
-
     }
 
     /*
