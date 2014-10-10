@@ -29,9 +29,11 @@ def image2digit_service(data):
     image2 = cv2.resize(image2, (int(w2 * (target_height / h2)), int(target_height)))
 
     h2,w2 = image2.shape[:2]
-    image2 = image2[:h2,:w2-0]
+    image2 = image2[3:h2-3,3:w2-3]
     h2,w2 = image2.shape[:2]
     image2 = cv2.adaptiveThreshold(image2, 255, 1, cv2.THRESH_BINARY, 11, 2)
+
+    image2 = cv2.resize(image2, (int(w2 * (target_height / h2)), int(target_height)))
 
     #image2_ = numpy.zeros((h2,w2+w2), numpy.uint8)
     #image2_[:h2, :w2] = image2
@@ -69,12 +71,15 @@ def image2digit_service(data):
             digit = int(data[6])
         except ValueError:
             #print 'ord(%s) = %d' % (data[6], ord(data[6]))
-            try:
-                digit = int(data[7])
-            except ValueError:
-                digit = -1
+		if data[6] == 'O':
+			digit = 0
+                else if len(data) >= 8:
+			try:
+				digit = int(data[7])
+			except ValueError:
+				digit = -1
 
-    #print 'Digit = %d' % (digit)
+    print 'Data = %sDigit = %d' % (data, digit)
     return digit, 0.0
 
 if __name__ == '__main__':
