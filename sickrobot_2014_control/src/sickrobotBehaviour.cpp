@@ -347,20 +347,21 @@ protected:
             // driveToGoal(goal);
 
             ROS_INFO("Sending goal");
-            mbClient->sendGoal(goal);
+            drive_to_goal_failure_resistent(goal,0.1,0.0,0.0);
+//            mbClient->sendGoal(goal);
 
-            mbClient->waitForResult();
+//            mbClient->waitForResult();
 
-            if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
-                ROS_INFO("Great we reached the goal");
+//            if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+//                ROS_INFO("Great we reached the goal");
 
-                // setState(STATE_STOP);
-                // return;
-            }
+//                // setState(STATE_STOP);
+//                // return;
+//            }
 
-            else {
-                ROS_INFO("That was bad, we didn't reach our goal");
-            }
+//            else {
+//                ROS_INFO("That was bad, we didn't reach our goal");
+//            }
 
             if(_number_objects>0){
               geometry_msgs::Point my_pos_curr;
@@ -441,11 +442,13 @@ protected:
         goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(M_PI+atan2(normal_slope_y,normal_slope_x));
 
         ROS_INFO("Sending goal");
-        mbClient->sendGoal(goal);
+        int failure_result=drive_to_goal_failure_resistent(goal,0.1*cos(atan2(normal_slope_y,normal_slope_x)),0.1*sin(atan2(normal_slope_y,normal_slope_x)),0.0);
+//        mbClient->sendGoal(goal);
 
-        mbClient->waitForResult();
+//        mbClient->waitForResult();
 
-        if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+       // if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+            if (failure_result>=0) {
             ROS_INFO("Great we reached the goal");
             //initialize Twist-Message
             geometry_msgs::Twist cmdVelTwist;
@@ -512,7 +515,7 @@ protected:
         }
 
         else {
-            ROS_INFO("That was bad, we didn't reach our goal");
+            ROS_ERROR("That was bad, we didn't reach our goal NOT AT ALL");
         }
 
 
@@ -832,11 +835,13 @@ protected:
         goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(M_PI+atan2(dir_y_normalized,dir_x_normalized));
 
         ROS_INFO("Sending goal");
-        mbClient->sendGoal(goal);
+        int fail_result_first=drive_to_goal_failure_resistent(goal,0.1*cos(atan2(dir_y_normalized,dir_x_normalized)),0.1*sin(atan2(dir_y_normalized,dir_x_normalized)),0.0);
+//        mbClient->sendGoal(goal);
 
-        mbClient->waitForResult();
+//        mbClient->waitForResult();
 
-        if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+        //if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+        if (fail_result_first>=0) {
             ROS_INFO("Great we reached the goal");
 //jetzt haben wir hoffentlich sichtkontakt und berechnen dir normale zur wand nochmal über cvgetnormal,
             //dann fahren wir dahin, mit dem generellen wand abstand zur grobpositionierung
@@ -850,18 +855,20 @@ protected:
             fine_goal.target_pose.header.frame_id = "map";
             fine_goal.target_pose.header.stamp = ros::Time::now();
 
-            float dist_wall=1.0;
+
             fine_goal.target_pose.pose.position.x = current_target.pose.pose.position.x+distance_to_wall_first_drive*normal_slope_x;
             fine_goal.target_pose.pose.position.y = current_target.pose.pose.position.y+distance_to_wall_first_drive*normal_slope_y;
             fine_goal.target_pose.pose.position.z = my_pos.z;
             std::cout<< " yaw for position " <<(atan2(normal_slope_y,normal_slope_x)/M_PI)*180<<std::endl;
             fine_goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(M_PI+atan2(normal_slope_y,normal_slope_x));
 
-            mbClient->sendGoal(goal);
+            int fail_result_second=drive_to_goal_failure_resistent(fine_goal,0.1*cos(atan2(normal_slope_y,normal_slope_x)),0.1*sin(atan2(normal_slope_y,normal_slope_x)),0.0);
+//            mbClient->sendGoal(goal);
 
-            mbClient->waitForResult();
+//            mbClient->waitForResult();
 
-            if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+//            if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+             if (fail_result_second>=0) {
               bool is_known=false;
 
               geometry_msgs::Point my_pos_curr;
@@ -898,7 +905,7 @@ protected:
             }
 
             else {
-                ROS_INFO("That was bad, we didn't reach our goal");
+                ROS_ERROR("That was bad, we didn't reach our goal NOT AT ALL ");
             }
 
 
@@ -914,7 +921,7 @@ protected:
         }
 
         else {
-            ROS_INFO("That was bad, we didn't reach our goal");
+            ROS_ERROR("That was bad, we didn't reach our goal NOT AT ALL");
         }
 
 
@@ -940,12 +947,12 @@ protected:
 
 
       // Wir fahren immer zur ersten ladestation wenn wir noch viel langeweile haben könne wir das noch schlauer machen.
+      int failure_result=drive_to_goal_failure_resistent(anfahr_goal_first_loadstation,0.1,0.0,0.0);
+//      mbClient->sendGoal(anfahr_goal_first_loadstation);
 
-      mbClient->sendGoal(anfahr_goal_first_loadstation);
+//      mbClient->waitForResult();
 
-      mbClient->waitForResult();
-
-      if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+      if (failure_result>=0) {
 
         geometry_msgs::Point my_pos_curr;
         float                my_yaw_curr;
@@ -980,6 +987,7 @@ protected:
 
 
     }
+
       else{
         ROS_INFO("That was bad, we didn't reach our goal");
       }
