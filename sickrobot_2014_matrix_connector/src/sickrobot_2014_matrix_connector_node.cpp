@@ -87,6 +87,7 @@ int main(int argc, char** argv)
 
     if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) {
         ROS_ERROR("Cannot connect to matrix: ip=%s, port=%d", ip_address.c_str(), portno);
+        return -1;
     }
     ros::Publisher pub = nh.advertise<std_msgs::Int32>("holzklotz_number", 5);
     std_msgs::Int32 msg;
@@ -103,8 +104,8 @@ int main(int argc, char** argv)
         bzero(buffer,256);
         int n = readline(sockfd, buffer, sizeof(buffer));
         int station = -1;
-        if(n != 4){
-            ROS_ERROR("Invalid MSG from scanner recieved, Length should be 4 but was %d", n);
+        if(n < 4){
+            ROS_ERROR("Invalid MSG from scanner recieved, Length should be >=4 but was %d", n);
         }else{
             ROS_DEBUG("MSG from Scanner recieved");
             char number = buffer[1];
