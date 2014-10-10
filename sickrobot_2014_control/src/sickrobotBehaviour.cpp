@@ -293,7 +293,7 @@ protected:
         direction.header.frame_id="base_link";
         direction.header.stamp=ros::Time::now();
         getDist_srv.request.point.header.stamp = direction.header.stamp;
-        getDist_srv.request.point.header.frame_id="exploration_goal_frame";
+        getDist_srv.request.point.header.frame_id=direction.header.frame_id;
         direction.point.z=my_pos.z;
         getDist_srv.request.point=direction;
         getDist_client.call(getDist_srv);
@@ -661,7 +661,7 @@ protected:
                 direction.point.x=0.0;
                 direction.point.y=0.5;
                 direction.header.frame_id="exploration_goal_frame";
-                direction.header.stamp=ros::Time::now();
+                direction.header.stamp=ros::Time(0);
                 getDist_srv.request.point.header.stamp = direction.header.stamp;
                 getDist_srv.request.point.header.frame_id="exploration_goal_frame";
 
@@ -671,7 +671,7 @@ protected:
 
                 visualization_msgs::MarkerArray marker_array;
                 visualization_msgs::Marker marker;
-                marker.header.stamp = getDist_srv.request.point.header.stamp = ros::Time::now();
+                marker.header.stamp = getDist_srv.request.point.header.stamp = ros::Time(0);
                 marker.header.frame_id = "exploration_goal_frame";
                 marker.type = visualization_msgs::Marker::LINE_LIST;
                 marker.action = visualization_msgs::Marker::ADD;
