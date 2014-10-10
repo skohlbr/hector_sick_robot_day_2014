@@ -52,10 +52,7 @@ public:
         // instantiate publisher and subscriber
         ros::NodeHandle worldmodel(std::string("worldmodel"));
         worldmodel_AddObject = worldmodel.serviceClient<hector_worldmodel_msgs::AddObject>("add_object");
-        worldmodel.param("exploration_dist_wall", explor_dist_wall, 1.0);
-        worldmodel.param("exploration_circle_radius", exploration_circle_radius, 6.0);
-        worldmodel.param("exploration_error_dis_wall_threshold", exploration_error_dis_wall_threshold, 0.1);
-        ros::NodeHandle root("");
+         ros::NodeHandle root("");
         cmdVelPublisher = root.advertise<geometry_msgs::Twist>("turtlebot_node/cmd_vel", 10, false);
         messagePublisher = root.advertise<std_msgs::String>("sickrobot/print", 10, false);
 
@@ -63,15 +60,15 @@ public:
         //worldmodel_objects_sub = root.subscribe<std_msgs::Int32>("holzklotz_number", 10, &sickrobot_behaviour::holzklotzCb, this);
         modelSubscriber = worldmodel.subscribe("objects", 10, &sickrobot_behaviour::objectsCb, this);
 
-
         ros::NodeHandle sick_nh(std::string("~"));
         startMission = sick_nh.advertiseService("/sickrobot/start_mission", &sickrobot_behaviour::startMissionCb, this);
         m_marker_points = sick_nh.advertise<visualization_msgs::MarkerArray>("/sickrobot/endpoints", 1, false);
         m_marker_normal = sick_nh.advertise<visualization_msgs::MarkerArray>("/sickrobot/normal", 1, false);
-        sick_nh.param("drive_to_first_blind_distance", drive_to_first_blind_distance, 0.5);
+        sick_nh.param("distance_to_wall_first_drive", distance_to_wall_first_drive, 0.5);
         sick_nh.param("exploration_dist_wall", explor_dist_wall, 1.0);
         sick_nh.param("exploration_circle_radius", exploration_circle_radius, 6.0);
         sick_nh.param("exploration_error_dis_wall_threshold", exploration_error_dis_wall_threshold, 0.1);
+        sick_nh.param("exploration_distance_mp_start", exploration_distance_mp_start, 6.0);
 
         getDist_client = root.serviceClient<hector_nav_msgs::GetDistanceToObstacle>("hector_map_server/get_distance_to_obstacle");
 
@@ -272,6 +269,60 @@ protected:
         //drive straight until first goal station is seen, then drive towards it till certain distance threshold
         //TODO make an adaptive step control ( if not possible to plan through wall etc)
         ROS_INFO("state: driving to first load station");
+
+        //get our own position
+        geometry_msgs::Point my_pos;
+        float                my_yaw;
+
+        getCurrentPosition(&my_pos, &my_yaw);
+        //get distance to wall
+        hector_nav_msgs::GetDistanceToObstacle getDist_srv;
+        geometry_msgs::PointStamped direction;
+
+        direction.point.x=0.5;
+        direction.point.y=0.0;
+        direction.header.frame_id="base_link";
+        direction.header.stamp=ros::Time::now();
+        getDist_srv.request.point.header.stamp = direction.header.stamp;
+        getDist_srv.request.point.header.frame_id="exploration_goal_frame";
+        direction.point.z=my_pos.z;
+        getDist_srv.request.point=direction;
+        getDist_client.call(getDist_srv);
+
+
+        //drive towards wall
+
+
+        std::cout << "pos x:" <<my_pos.x << "   pos_y:"<<my_pos.y << "   my pos z:" <<my_pos.z<<   "yaw  " <<my_yaw <<std::endl;
+        move_base_msgs::MoveBaseGoal goal;
+        goal.target_pose.header.frame_id = "map";
+        goal.target_pose.header.stamp = ros::Time::now();
+
+        goal.target_pose.pose.position.x = my_pos.x+getDist_srv.response.distance-distance_to_wall_first_drive;//*cos(my_yaw);
+        goal.target_pose.pose.position.y = my_pos.y;//+1*sin(my_yaw);
+        goal.target_pose.pose.position.z = my_pos.z;
+        goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(0);
+
+        ROS_INFO("Sending goal");
+        mbClient->sendGoal(goal);
+
+        mbClient->waitForResult();
+
+        if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+            ROS_INFO("Great we reached the goal");
+
+            // setState(STATE_STOP);
+            // return;
+        }
+
+        else {
+            ROS_INFO("That was bad, we didn't reach our goal");
+        }
+
+
+
+        // if we do not see it now continue driving towards wall in 0.2 steps -> may be do something else?
+
         while (_number_objects==0){
             geometry_msgs::Point my_pos;
             float                my_yaw;
@@ -285,7 +336,7 @@ protected:
 
 
             //TODO need to ckeck if we really need yaw cos sin here !!!! maybe drifting because of this
-            goal.target_pose.pose.position.x = my_pos.x+0.75;//*cos(my_yaw);
+            goal.target_pose.pose.position.x = my_pos.x+0.2;//*cos(my_yaw);
             goal.target_pose.pose.position.y = my_pos.y;//+1*sin(my_yaw);
             goal.target_pose.pose.position.z = my_pos.z;
             goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(0);
@@ -335,7 +386,7 @@ protected:
         goal.target_pose.header.frame_id = "map";
         goal.target_pose.header.stamp = ros::Time::now();
 
-        float dist_wall=0.6;
+        float dist_wall=distance_to_wall_first_drive;
         goal.target_pose.pose.position.x = current_target.pose.pose.position.x+dist_wall*normal_slope_x;
         goal.target_pose.pose.position.y = current_target.pose.pose.position.y+dist_wall*normal_slope_y;
         goal.target_pose.pose.position.z = my_pos.z;
@@ -369,7 +420,8 @@ protected:
                 //        if (dist > 0.5)
                 //          dist = 0.5;
 
-                std::cout << " dist to target " << std::abs(my_pos.x- current_target.pose.pose.position.x)+0.25*normal_slope_x-offset_error << std::endl;
+
+                  std::cout << " dist to target " << std::abs(my_pos.x- current_target.pose.pose.position.x)+0.25*normal_slope_x-offset_error << std::endl;
 
                 cmdVelTwist.linear.x = 0.1;
 
@@ -479,7 +531,7 @@ protected:
         bool is_known=false;
         hector_nav_msgs::GetDistanceToObstacle getDist_srv;
         geometry_msgs::Point mp;
-        mp.x=exploration_circle_radius;
+        mp.x=exploration_distance_mp_start;
         mp.y=0;
         mp.z=0;
         int phi=0;
@@ -680,9 +732,9 @@ protected:
             phi=phi+10;
 
             // just for testing need to remove this!!!!!
-            if (phi==20){
-                is_known=true;
-            }
+//            if (phi==20){
+//                is_known=true;
+//            }
 
         }
         _state=STATE_DRIVE_TO_UNLOAD_STATION;
@@ -1047,10 +1099,40 @@ protected:
     }
 
     void getNormal(geometry_msgs::PointStamped point,float &normal_slope_x,float &normal_slope_y){
+
+
+        geometry_msgs::PointStamped point_in_base_link;
+        try
+        {
+            tf_listener.transformPoint("base_link", point,point_in_base_link);
+
+        }
+        catch (tf::TransformException &ex)
+        {
+            printf ("Failure %s\n", ex.what()); //Print exception which was caught
+           // trafo_went_wrong=true;
+        }
+
         geometry_msgs::Point my_pos;
         float                my_yaw;
 
         getCurrentPosition(&my_pos, &my_yaw);
+
+        geometry_msgs::PointStamped my_pos_base_link;
+        geometry_msgs::PointStamped my_pos_map;
+        my_pos_map.header.stamp=ros::Time::now();
+        my_pos_map.header.frame_id="map";
+        my_pos_map.point=my_pos;
+        try
+        {
+            tf_listener.transformPoint("base_link", my_pos_map,my_pos_base_link);
+
+        }
+        catch (tf::TransformException &ex)
+        {
+            printf ("Failure %s\n", ex.what()); //Print exception which was caught
+           // trafo_went_wrong=true;
+        }
 
         hector_nav_msgs::GetDistanceToObstacle getDist_srv;
 
@@ -1058,9 +1140,7 @@ protected:
         std::vector<float> distances;
         std::vector<geometry_msgs::Point> end_points;
         std::vector<geometry_msgs::Point> directions;
-        geometry_msgs::PointStamped direction=point;
-        tf::Point pointTF;
-        tf::Point directionTF;
+        geometry_msgs::PointStamped direction=point_in_base_link;
         geometry_msgs::Point end_point;
 
         for (int i=0;i<5;i++){
@@ -1071,7 +1151,7 @@ protected:
             getDist_client.call(getDist_srv);
             float dis=getDist_srv.response.distance;
             distances.push_back(dis);
-            std::cout <<" distance to wall:" <<dis <<std::endl;
+            std::cout <<" normalen punkte: distance to wall:" <<dis <<std::endl;
             if (i==0){
                 direction.point.x=direction.point.x+0.5;}
             else if (i==1){
@@ -1085,21 +1165,25 @@ protected:
                 direction.point.y=direction.point.y-1.0;
             }
 
+            // maybe position in base link is zero
+            float diffx= direction.point.x-my_pos_base_link.point.x;
+            float diffy= direction.point.y-my_pos_base_link.point.y;
 
-            float diffx= direction.point.x-my_pos.x;
-            float diffy= direction.point.y-my_pos.y;
 
+            std::cout <<" diff x, y :" << diffx << "," << diffy << std::endl;
             float norm_factor=sqrt(diffx*diffx+diffy*diffy);
 
+            std::cout <<"norm_factor" << norm_factor << std::endl;
             float norm_x=diffx*(1/norm_factor);
             float norm_y=diffy*(1/norm_factor);
 
-            end_point.x=my_pos.x+dis*norm_x;
-            end_point.y=my_pos.y+dis*norm_y;
-            end_point.z=point.point.z;
+            end_point.x=my_pos_base_link.point.x+dis*norm_x;
+            end_point.y=my_pos_base_link.point.y+dis*norm_y;
+            end_point.z=my_pos_base_link.point.z;
 
             end_points.push_back(end_point);
             directions.push_back(direction.point);
+
 
 
         }
@@ -1109,8 +1193,8 @@ protected:
             visualization_msgs::MarkerArray marker_array;
 
             visualization_msgs::Marker marker;
-            marker.header.stamp = point.header.stamp;
-            marker.header.frame_id = point.header.frame_id;
+            marker.header.stamp = point_in_base_link.header.stamp;
+            marker.header.frame_id = point_in_base_link.header.frame_id;
             marker.type = visualization_msgs::Marker::POINTS;
             marker.action = visualization_msgs::Marker::ADD;
             marker.color.r= 1.0;
@@ -1145,6 +1229,7 @@ protected:
             }
         }
 
+  std::cout <<"reached end regress points of normal method" << std::endl;
         std::vector<geometry_msgs::Point> regress_points_no_duplicate_x;
         for (int i=0;i<regress_points.size();i++){
             bool duplicate=false;
@@ -1160,7 +1245,7 @@ protected:
 
         }
 
-
+std::cout <<"reached end no duplicate points of normal method" << std::endl;
         float b;
         if (regress_points_no_duplicate_x.size()>1){
             // calculate the slope of the wall line
@@ -1179,12 +1264,14 @@ protected:
                 sumxy=sumxy+(regress_points_no_duplicate_x[i].x-meanx)*(regress_points_no_duplicate_x[i].y-meany);
                 sumxx=sumxx+(regress_points_no_duplicate_x[i].x-meanx)*(regress_points_no_duplicate_x[i].x-meany);
             }
-
+std::cout <<"check 1" << std::endl;
             float m=sumxy/sumxx;
             b=meany-m*meanx;
 
             // line is parallel to x-axis, need to treat this special
             if (abs(m)<0.01){
+                ROS_INFO("line parallel to X axis");
+
                 b=meany-m*meanx;
                 normal_slope_x=0;
 
@@ -1205,21 +1292,23 @@ protected:
 
         // line is parallel to y-axis need to treat this special
         else{
+
+            ROS_INFO("line parallel to y axis");
             if (my_pos.x>point.point.x){
                 normal_slope_x=1;}
             else{
                 normal_slope_x=-1;
             }
             normal_slope_y=0;
-            b= regress_points_no_duplicate_x[0].y;
+
+
 
         }
         std::cout <<"normal_slope_x:" <<std::endl;
         ROS_INFO_STREAM(normal_slope_x);
         std::cout <<"normal_slope_y:" <<std::endl;
         ROS_INFO_STREAM(normal_slope_y);
-        std::cout <<"b:" <<std::endl;
-        ROS_INFO_STREAM(b);
+
         if (m_marker_normal.getNumSubscribers() > 0  ){
 
 
@@ -1301,10 +1390,11 @@ private:
     // std::string current_drive_target;
     hector_worldmodel_msgs::Object current_target;
     hector_worldmodel_msgs::Object first_load_station;
-    double drive_to_first_blind_distance;
+    double distance_to_wall_first_drive;
     double explor_dist_wall;
     double exploration_circle_radius;
     double exploration_error_dis_wall_threshold;
+    double exploration_distance_mp_start;
 
     enum State {
         STATE_IDLE,
