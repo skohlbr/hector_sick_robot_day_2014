@@ -35,19 +35,39 @@ def image2digit_service(data):
     h2,w2 = image2.shape[:2]
     image2 = cv2.adaptiveThreshold(image2, 255, 1, cv2.THRESH_BINARY, 11, 2)
 
-    ##labeled_image, stats, centroids = cv2.connectedComponentsWithStats(image2)
-    ##labeled_image = cv2.connectedComponents(image2)
+    image2_contours = cv2.bitwise_not(image2)
+    contours, _ = cv2.findContours(image2_contours, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    moments = map(cv2.moments, contours)
+    moments,contours = zip(*filter(lambda (mmnt,_): mmnt['m00'] != 0, zip(moments, contours)))
+    centroids = map(lambda mmnt: (mmnt['m10']/mmnt['m00'], mmnt['m01']/mmnt['m00']), moments)
 
-    #contours, _ = cv2.findContours(image2, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    hy,hx = image2.shape[:2]
+    cx = hx / 2
+    cy = hy / 2
+
+    distances = map(lambda ctr: numpy.linalg.norm((cx-ctr[0],cy-ctr[1])), centroids)
+    if len(distances) > 0:
+        mini, mind = min(enumerate(distances), key = operator.itemgetter(1))
+        print 'Connected component with min distance %d %f' %  (mini, mind)
+        # print contours[mini]
+        x,y,w,h = cv2.boundingRect(contours[mini])
+        image2 = image2[y:y+h,x:x+w]
+
+    #print centroids
+    #print (cx, cy)
+
+
     #for c in contours:
-        #img = cv2.contourArea(c)
+    #rect = cv2.boundingRect(c)
+    #area = cv2.contourArea(c)
+    ##       imag = cv2.drawContours(
+
+#        print img
         #largeMask = np.zeros((img.shape[0]+2, img.shape[1]+2), np.uint8)
         #cv2.floodFill(img, largeMask)
 
-    ## center of image
-    #hy,hx = image2.shape[:2]
-    #cx = hx / 2
-    #cy = hy / 2
+    # center of image
+
 
     #distances = map(lambda ctr: numpy.linalg.norm((cx,cy) - ctr), centroids[1:])
     #mini, mind = min(enumerate(distances), key=itemgetter(1))
