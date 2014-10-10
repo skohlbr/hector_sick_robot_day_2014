@@ -54,7 +54,7 @@ public:
         // instantiate publisher and subscriber
         ros::NodeHandle worldmodel(std::string("worldmodel"));
         worldmodel_AddObject = worldmodel.serviceClient<hector_worldmodel_msgs::AddObject>("add_object");
-         ros::NodeHandle root("");
+        ros::NodeHandle root("");
         cmdVelPublisher = root.advertise<geometry_msgs::Twist>("turtlebot_node/cmd_vel", 10, false);
         messagePublisher = root.advertise<std_msgs::String>("sickrobot/print", 10, false);
 
@@ -420,14 +420,14 @@ protected:
             offset_error=(std::abs(my_pos.x- current_target.pose.pose.position.x)-dist_wall);
             //std::cout << "ofset error " <<offset_error<<std::endl;
 
-           // std::cout << "my pos " << my_pos.x<<  "   target " <<current_target.pose.pose.position.x <<" norm  "<<0.25*normal_slope_x<<std::endl;
-           std::cout << " dist to target " << std::abs(my_pos.x- current_target.pose.pose.position.x)+cmd_vel_distance_to_wall*normal_slope_x-offset_error << std::endl;
-              while (((std::abs(my_pos.x- current_target.pose.pose.position.x)+cmd_vel_distance_to_wall*normal_slope_x-offset_error)>0.05)){
+            // std::cout << "my pos " << my_pos.x<<  "   target " <<current_target.pose.pose.position.x <<" norm  "<<0.25*normal_slope_x<<std::endl;
+            std::cout << " dist to target " << std::abs(my_pos.x- current_target.pose.pose.position.x)+cmd_vel_distance_to_wall*normal_slope_x-offset_error << std::endl;
+            while (((std::abs(my_pos.x- current_target.pose.pose.position.x)+cmd_vel_distance_to_wall*normal_slope_x-offset_error)>0.05)){
                 //        if (dist > 0.5)
                 //          dist = 0.5;
 
 
-                  std::cout << " dist to target " << std::abs(my_pos.x- current_target.pose.pose.position.x)+cmd_vel_distance_to_wall*normal_slope_x-offset_error << std::endl;
+                std::cout << " dist to target " << std::abs(my_pos.x- current_target.pose.pose.position.x)+cmd_vel_distance_to_wall*normal_slope_x-offset_error << std::endl;
 
                 cmdVelTwist.linear.x = 0.1;
 
@@ -586,7 +586,7 @@ protected:
                 catch (tf::TransformException &ex)
                 {
                     printf ("Failure %s\n", ex.what()); //Print exception which was caught
-                   // trafo_went_wrong=true;
+                    // trafo_went_wrong=true;
                 }
 
                 geometry_msgs::QuaternionStamped quat_point_in_map;
@@ -603,7 +603,7 @@ protected:
                 catch (tf::TransformException &ex)
                 {
                     printf ("Failure %s\n", ex.what()); //Print exception which was caught
-                   // trafo_went_wrong=true;
+                    // trafo_went_wrong=true;
                 }
 
                 double roll_q, pitch_q, yaw_q;
@@ -660,42 +660,42 @@ protected:
                 getDist_client.call(getDist_srv);
 
                 if (getDist_srv.response.distance >=0){
-                if (std::abs(getDist_srv.response.distance-explor_dist_wall)>exploration_error_dis_wall_threshold){
-                    geometry_msgs::PointStamped correction_point_in_EF;
-                    correction_point_in_EF.header.stamp=pub_time;
-                    correction_point_in_EF.header.frame_id="exploration_goal_frame";
+                    if (std::abs(getDist_srv.response.distance-explor_dist_wall)>exploration_error_dis_wall_threshold){
+                        geometry_msgs::PointStamped correction_point_in_EF;
+                        correction_point_in_EF.header.stamp=pub_time;
+                        correction_point_in_EF.header.frame_id="exploration_goal_frame";
 
-                    correction_point_in_EF.point.x=0;
-                    correction_point_in_EF.point.y=getDist_srv.response.distance-explor_dist_wall;
-                    correction_point_in_EF.point.z=0;
+                        correction_point_in_EF.point.x=0;
+                        correction_point_in_EF.point.y=getDist_srv.response.distance-explor_dist_wall;
+                        correction_point_in_EF.point.z=0;
 
-                    geometry_msgs::PointStamped correction_point_in_map;
+                        geometry_msgs::PointStamped correction_point_in_map;
 
-                    pub_time=ros::Time::now();
-                    br.sendTransform(tf::StampedTransform(transform, pub_time, "base_link", "exploration_goal_frame"));
+                        pub_time=ros::Time::now();
+                        br.sendTransform(tf::StampedTransform(transform, pub_time, "base_link", "exploration_goal_frame"));
 
-                    br.sendTransform(tf::StampedTransform(transform, pub_time, "base_link", "exploration_goal_frame"));
+                        br.sendTransform(tf::StampedTransform(transform, pub_time, "base_link", "exploration_goal_frame"));
 
-                    try
-                    {
-                        tf_listener.transformPoint("map", correction_point_in_EF, correction_point_in_map);
+                        try
+                        {
+                            tf_listener.transformPoint("map", correction_point_in_EF, correction_point_in_map);
+
+                        }
+                        catch (tf::TransformException &ex)
+                        {
+                            ROS_ERROR("Failure %s\n", ex.what()); //Print exception which was caught
+                            trafo_went_wrong=true;
+                        }
+
+                        circle_point.target_pose.pose.position.x=correction_point_in_map.point.x;
+                        circle_point.target_pose.pose.position.y =correction_point_in_map.point.y;
+                        if (trafo_went_wrong){
+
+                            ROS_WARN("TRANSFORMATION WENT WRONG using circle point");
+                        }
+                        ROS_WARN("modiefied point !!!!!!");
 
                     }
-                    catch (tf::TransformException &ex)
-                    {
-                        ROS_ERROR("Failure %s\n", ex.what()); //Print exception which was caught
-                        trafo_went_wrong=true;
-                    }
-
-                    circle_point.target_pose.pose.position.x=correction_point_in_map.point.x;
-                    circle_point.target_pose.pose.position.y =correction_point_in_map.point.y;
-                    if (trafo_went_wrong){
-
-                   ROS_WARN("TRANSFORMATION WENT WRONG using circle point");
-                    }
-                   ROS_WARN("modiefied point !!!!!!");
-
-                }
                 }
                 else
                 { ROS_WARN("dist kleiner 0 , not modifying circle point !!!!!!");
@@ -753,9 +753,9 @@ protected:
 
 
         //for testing purpose -> remeber to remove this !!!!!!!!!!!!!!!!!!!
-//        point.point.x=-0.75;
-//        point.point.y=0.0;
-//        point.point.z=0.0;
+        //        point.point.x=-0.75;
+        //        point.point.y=0.0;
+        //        point.point.z=0.0;
 
         point.header.frame_id=current_target.header.frame_id;
         point.header.stamp=current_target.header.stamp;
@@ -1112,7 +1112,7 @@ protected:
         catch (tf::TransformException &ex)
         {
             printf ("Failure %s\n", ex.what()); //Print exception which was caught
-           // trafo_went_wrong=true;
+            // trafo_went_wrong=true;
         }
 
         geometry_msgs::Point my_pos;
@@ -1133,7 +1133,7 @@ protected:
         catch (tf::TransformException &ex)
         {
             printf ("Failure %s\n", ex.what()); //Print exception which was caught
-           // trafo_went_wrong=true;
+            // trafo_went_wrong=true;
         }
 
         hector_nav_msgs::GetDistanceToObstacle getDist_srv;
@@ -1275,20 +1275,43 @@ protected:
         float slope_x=line_result[0];
         float slope_y=line_result[1];
 
+
+
         normal_slope_x=-slope_y;
         normal_slope_y=slope_x;
+
+
 
         float diffx=my_pos_base_link.point.x-point_in_base_link.point.x;
         float diffy=my_pos_base_link.point.y-point_in_base_link.point.y;
 
 
 
-        float dot_product=diffx*slope_x+diffy*slope_y;
+        float dot_product=diffx*normal_slope_x+diffy*normal_slope_y;
 
         if (dot_product<0){
             normal_slope_x=slope_y;
             normal_slope_y=-slope_x;
         }
+
+        geometry_msgs::PointStamped slope_in__base_link;
+        geometry_msgs::PointStamped slope_in__map;
+        slope_in__base_link.header.stamp=base_time;
+        slope_in__base_link.header.frame_id="base_link";
+        slope_in__base_link.point.x=normal_slope_x;
+        slope_in__base_link.point.y=normal_slope_y;
+        slope_in__base_link.point.z=0;
+        try
+        {
+            tf_listener.transformPoint(point.header.frame_id, slope_in__base_link,slope_in__map);
+        }
+        catch (tf::TransformException &ex)
+        {
+            printf ("Failure %s\n", ex.what()); //Print exception which was caught
+            // trafo_went_wrong=true;
+        }
+        normal_slope_x=slope_in__map.point.x;
+        normal_slope_y=slope_in__map.point.y;
 
         std::cout << "CV !!!!! normalx,y  "<<normal_slope_x<<","<<normal_slope_y<<std::endl;
 
