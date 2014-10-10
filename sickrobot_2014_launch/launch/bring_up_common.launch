@@ -12,4 +12,10 @@
 
     <include file="$(find sickrobot_2014_control)/launch/sick_robot_2014_behavior.launch" />
 
+
+ <include file="$(find sickrobot_2014_plane_detection)/launch/detect_openni.launch" />
+
+<include file="$(find hector_digit_detection_python)/launch/digit_detection.launch" /> -
+
+
 </launch>
