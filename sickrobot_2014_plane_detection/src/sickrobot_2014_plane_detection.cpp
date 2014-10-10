@@ -59,12 +59,13 @@ ros::Publisher percept_publisher_;
 tf::TransformListener* listener;
 ros::ServiceClient digit_service;
 
-double wall_distance = 0.0;
-double plane_height = 0.0;
-double sign_width = 600.0;
-double sign_height = 840.0;
+double sign_width = 0.6;
+double sign_height = 0.84;
 double sign_width_tolerance = 200.0;
 double sign_height_tolerance = 200.0;
+double height_cutoff_min = 0.5;
+double height_cutoff_max = 1.5;
+
 
 Eigen::Affine3d to_base_link_;
 
@@ -85,7 +86,7 @@ void filterDepth(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud){
 
     no_ground_pass.setInputCloud (cloud);
     no_ground_pass.setFilterFieldName ("z");
-    no_ground_pass.setFilterLimits (wall_distance - 1.0, wall_distance + 1.0);
+    //no_ground_pass.setFilterLimits (wall_distance - 1.0, wall_distance + 1.0);
 
     no_ground_pass.filter (*cloud_filtered);
 
@@ -456,7 +457,7 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
     cloud = cloud_tmp;
 
     // Filter height in base_link frame
-    filterHeight(cloud, "z", 0.5, 1.5);
+    filterHeight(cloud, "z", height_cutoff_min, height_cutoff_max);
 
     // Publish filtered cloud to ROS for debugging
     if (plane_pub.getNumSubscribers() > 0){
@@ -550,13 +551,12 @@ int main(int argc, char** argv)
     ros::init(argc, argv, "plane_detection");
     ros::NodeHandle nh_("~");
 
-    nh_.getParam("wall_distance", wall_distance);
-    nh_.getParam("plane_height", plane_height);
     nh_.getParam("sign_width", sign_width);
     nh_.getParam("sign_height", sign_height);
     nh_.getParam("width_tolerance", sign_width_tolerance);
     nh_.getParam("height_tolerance", sign_height_tolerance);
-
+    nh_.getParam("height_cutoff_min", height_cutoff_min);
+    nh_.getParam("height_cutoff_max", height_cutoff_max);
 
     image_transport::ImageTransport it_(nh_);
 
