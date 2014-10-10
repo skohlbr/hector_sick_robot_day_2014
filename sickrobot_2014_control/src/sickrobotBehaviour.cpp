@@ -596,8 +596,8 @@ protected:
             std::cout << " mp x" <<mp_arena.x << "   mpy " << mp_arena.y <<std::endl;
             std::cout << "cos x " << (exploration_circle_radius-explor_dist_wall)*cos((phi/180.0)*M_PI) <<std::endl;
             std::cout << "sin y " << (exploration_circle_radius-explor_dist_wall)*sin((phi/180.0)*M_PI) <<std::endl;
-            circle_point.target_pose.pose.position.x = mp_arena.x-(exploration_circle_radius-explor_dist_wall)*cos((phi/180.0)*M_PI); //TODO use pose from worldmodel
-            circle_point.target_pose.pose.position.y =(exploration_circle_radius-explor_dist_wall)*sin((phi/180.0)*M_PI);
+            circle_point.target_pose.pose.position.x = mp_arena.x-(exploration_circle_radius)*cos((phi/180.0)*M_PI); //TODO use pose from worldmodel
+            circle_point.target_pose.pose.position.y =(exploration_circle_radius)*sin((phi/180.0)*M_PI);
             circle_point.target_pose.pose.position.z = my_pos.z;
 
             float calc_yaw;
