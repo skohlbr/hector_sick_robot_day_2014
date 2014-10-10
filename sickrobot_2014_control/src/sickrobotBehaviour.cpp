@@ -293,7 +293,7 @@ protected:
         direction.header.frame_id="base_link";
         direction.header.stamp=ros::Time::now();
         getDist_srv.request.point.header.stamp = direction.header.stamp;
-        getDist_srv.request.point.header.frame_id="exploration_goal_frame";
+        getDist_srv.request.point.header.frame_id=direction.header.frame_id;
         direction.point.z=my_pos.z;
         getDist_srv.request.point=direction;
         getDist_client.call(getDist_srv);
@@ -661,7 +661,7 @@ protected:
                 direction.point.x=0.0;
                 direction.point.y=0.5;
                 direction.header.frame_id="exploration_goal_frame";
-                direction.header.stamp=ros::Time::now();
+                direction.header.stamp=ros::Time(0);
                 getDist_srv.request.point.header.stamp = direction.header.stamp;
                 getDist_srv.request.point.header.frame_id="exploration_goal_frame";
 
@@ -671,7 +671,7 @@ protected:
 
                 visualization_msgs::MarkerArray marker_array;
                 visualization_msgs::Marker marker;
-                marker.header.stamp = getDist_srv.request.point.header.stamp = ros::Time::now();
+                marker.header.stamp = getDist_srv.request.point.header.stamp = ros::Time(0);
                 marker.header.frame_id = "exploration_goal_frame";
                 marker.type = visualization_msgs::Marker::LINE_LIST;
                 marker.action = visualization_msgs::Marker::ADD;
@@ -701,7 +701,7 @@ protected:
                 if (getDist_srv.response.distance >=0){
                     if (std::abs(getDist_srv.response.distance-explor_dist_wall)>exploration_error_dis_wall_threshold){
                         geometry_msgs::PointStamped correction_point_in_EF;
-                        correction_point_in_EF.header.stamp=pub_time;
+                        correction_point_in_EF.header.stamp=ros::Time(0);
                         correction_point_in_EF.header.frame_id="exploration_goal_frame";
 
                         correction_point_in_EF.point.x=0;
@@ -1175,7 +1175,7 @@ protected:
 
 
       int failures=0;
-      while(failures>20){
+      while(failures<20){
       goal.target_pose.header.frame_id = "map";
 
 
@@ -1183,7 +1183,7 @@ protected:
       goal.target_pose.pose.position.y =goal.target_pose.pose.position.y +diry*failures ;
       goal.target_pose.pose.position.z = goal.target_pose.pose.position.z +dirz*failures;
 
-      ROS_INFO("Sending goal");
+      ROS_INFO("Sending goal from resistent");
       mbClient->sendGoal(goal);
 
       mbClient->waitForResult();
