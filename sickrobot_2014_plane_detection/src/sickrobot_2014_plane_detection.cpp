@@ -47,6 +47,8 @@
 
 #include <sstream>
 
+#include <tf_conversions/tf_eigen.h>
+
 
 typedef pcl::PointXYZ PointT;
 
@@ -59,6 +61,22 @@ ros::ServiceClient digit_service;
 
 double wall_distance = 0.0;
 double plane_height = 0.0;
+double sign_width = 600.0;
+double sign_height = 840.0;
+double sign_width_tolerance = 200.0;
+double sign_height_tolerance = 200.0;
+
+Eigen::Affine3d to_base_link_;
+
+sensor_msgs::PointCloud2 plane_msg;
+
+
+struct RectanglePointData{
+    Eigen::Vector3f point_base_link;
+    cv::Point2d point_image;
+};
+
+enum corners {BOTTOM_LEFT, UPPER_LEFT, UPPER_RIGHT, BOTTOM_RIGHT};
 
 void filterDepth(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud){
     pcl::PointCloud<PointT>::Ptr cloud_filtered (new pcl::PointCloud<PointT>);
@@ -74,18 +92,155 @@ void filterDepth(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud){
     cloud = cloud_filtered;
 }
 
-void filterHeight(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud){
+void filterVoxel(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, float voxel_size){
+    pcl::PointCloud<PointT>::Ptr cloud_filtered (new pcl::PointCloud<PointT>);
+
+    pcl::VoxelGrid<PointT> voxel_grid;
+
+    voxel_grid.setInputCloud (cloud);
+    voxel_grid.setLeafSize(voxel_size, voxel_size, voxel_size);
+    voxel_grid.filter (*cloud_filtered);
+
+    cloud = cloud_filtered;
+}
+
+void filterHeight(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, const std::string field_name, float min, float max){
     pcl::PointCloud<PointT>::Ptr cloud_filtered (new pcl::PointCloud<PointT>);
 
     pcl::PassThrough<PointT> no_ground_pass;
 
     no_ground_pass.setInputCloud (cloud);
-    no_ground_pass.setFilterFieldName ("y");
-    no_ground_pass.setFilterLimits (-6.0 , plane_height);
+    no_ground_pass.setFilterFieldName (field_name);
+    no_ground_pass.setFilterLimits (min , max);
 
     no_ground_pass.filter (*cloud_filtered);
 
     cloud = cloud_filtered;
+}
+
+void publishPolygonMsg(const std::vector<Eigen::Vector3f>& plane_rect, const std_msgs::Header& header)
+{
+  if (poly_pub.getNumSubscribers() > 0){
+    geometry_msgs::PolygonStamped plane_poly;
+    plane_poly.header = header;
+    plane_poly.header.frame_id = "base_link";
+
+    for (size_t i= 0 ; i < 4; ++i){
+      geometry_msgs::Point32 tmp;
+      tmp.x = plane_rect[i].x();
+      tmp.y = plane_rect[i].y();
+      tmp.z = plane_rect[i].z();
+
+      plane_poly.polygon.points.push_back(tmp);
+
+    }
+    poly_pub.publish(plane_poly);
+  }
+}
+
+bool checkGeometryProperties(const std::vector<Eigen::Vector3f>& plane_rect,
+                             const image_geometry::PinholeCameraModel& cam_model,
+                             const tf::Transform& to_cam_transform,
+                             std::vector<RectanglePointData>& plane_rect_data_ordered)
+{
+  std::vector<RectanglePointData> plane_rect_data_unordered;
+  plane_rect_data_unordered.resize(4);
+  plane_rect_data_ordered.resize(4);
+
+  float max_x = -1000, min_x = 1000;
+  float max_y = -1000, min_y = 1000;
+
+  for (size_t i= 0 ; i < 4; ++i){
+
+      plane_rect_data_unordered[i].point_base_link = plane_rect[i];
+
+      Eigen::Vector3d point_depth_frame (to_base_link_.inverse() * plane_rect[i].cast<double>());
+
+      tf::Point v3(point_depth_frame.x(), point_depth_frame.y(), point_depth_frame.z());
+      v3 = to_cam_transform * v3;
+
+
+      cv::Point3d cvP(v3.x(), v3.y(), v3.z());
+      cv::Point2d imgPoint = cam_model.project3dToPixel(cvP);
+      plane_rect_data_unordered[i].point_image = imgPoint;
+
+      if(max_x < imgPoint.x){
+          max_x = imgPoint.x;
+      }
+      if(min_x > imgPoint.x){
+          min_x = imgPoint.x;
+      }
+      if(max_y < imgPoint.y){
+          max_y = imgPoint.y;
+      }
+      if(min_y > imgPoint.y){
+          min_y = imgPoint.y;
+      }
+  }
+
+  float avg_x = ((max_x - min_x)/2 + min_x);
+  float avg_y = ((max_y - min_y)/2 + min_y);
+  ROS_DEBUG("max_x: %f", max_x);
+  ROS_DEBUG("min_x: %f", min_x);
+  ROS_DEBUG("max_y: %f", max_y);
+  ROS_DEBUG("min_y: %f", min_y);
+  ROS_DEBUG("avg_x: %f", avg_x);
+  ROS_DEBUG("avg_y: %f", avg_y);
+
+  for (size_t i= 0 ; i < 4; ++i){
+    //cv::Point2f point = src[i];
+    if(plane_rect_data_unordered[i].point_image.x <= avg_x){
+      if(plane_rect_data_unordered[i].point_image.y <= avg_y){
+        // Bottom left
+        plane_rect_data_ordered[BOTTOM_LEFT] = plane_rect_data_unordered[i];
+      }else{
+        // Upper left
+        plane_rect_data_ordered[UPPER_LEFT] = plane_rect_data_unordered[i];
+      }
+    }else {
+      if(plane_rect_data_unordered[i].point_image.y <= avg_y){
+        // Bottom right
+        plane_rect_data_ordered[BOTTOM_RIGHT] = plane_rect_data_unordered[i];
+      } else{
+        // Upper right
+        plane_rect_data_ordered[UPPER_RIGHT] = plane_rect_data_unordered[i];
+      }
+    }
+  }
+
+  return true;
+}
+
+void getPerspectiveTransformedImage(std::vector<RectanglePointData>& plane_rect_data_ordered,
+                               cv::Mat& source_img,
+                               cv::Mat& target_img)
+{
+  cv::Point2f src[4];
+  cv::Point2f dst[4];
+
+
+  // Order BOTTOM_LEFT, UPPER_LEFT, UPPER_RIGHT, BOTTOM_RIGHT
+  for (size_t i = 0; i < 4; ++i){
+    src[i] = plane_rect_data_ordered[i].point_image;
+  }
+
+  double aspect_ratio = sign_width / sign_height;
+  double base_width = 40.0;
+  double height = base_width / aspect_ratio;
+  //int x_max = static_cast<int>(base_width);
+  //int y_max = static_cast<int>(height);
+
+  float x_max = base_width;
+  float y_max = height;
+
+  dst[BOTTOM_LEFT]  = cv::Point2f(0.0f,0.0f);
+  dst[UPPER_LEFT]   = cv::Point2f(0.0f,y_max);
+  dst[UPPER_RIGHT]  = cv::Point2f(x_max, y_max);
+  dst[BOTTOM_RIGHT] = cv::Point2f(x_max,0.0f);
+
+  cv::Mat M = cv::getPerspectiveTransform(src, dst);
+  cv::warpPerspective(source_img, target_img, M, cv::Size(x_max, y_max));
+
 }
 
 
@@ -95,7 +250,7 @@ bool segmentDigitPlane(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, boos
         return false;
     }
 
-    ROS_INFO("Start segmentation");
+    ROS_DEBUG("Start segmentation");
     pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
 
     // Create the segmentation object
@@ -103,17 +258,17 @@ bool segmentDigitPlane(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, boos
     // Optional
     seg.setOptimizeCoefficients (true);
     // Mandatory
-    seg.setModelType (pcl::SACMODEL_PERPENDICULAR_PLANE);
+    seg.setModelType (pcl::SACMODEL_PARALLEL_PLANE);
     seg.setMethodType (pcl::SAC_RANSAC);
-    seg.setDistanceThreshold (0.03);
+    seg.setDistanceThreshold (0.04);
 
-    seg.setAxis(Eigen::Vector3f(0.0, 0.34,0.9)); //Parallel to view point
-    seg.setEpsAngle( 0.2 ); //With 20 degree difference
+    seg.setAxis(Eigen::Vector3f(0.0, 0.0, 1.0)); //Parallel to view point
+    seg.setEpsAngle( 10.0 * M_PI / 180 ); //With 20 degree difference
 
     seg.setInputCloud (cloud);
     seg.segment (*inliers, *coefficients);
-    ROS_INFO("Segmentation done");
-    ROS_INFO("Model coefficients: %f %f %f %f", coefficients->values[0], coefficients->values[1], coefficients->values[2], coefficients->values[3]);
+    ROS_DEBUG("Segmentation done");
+    ROS_DEBUG("Model coefficients: %f %f %f %f", coefficients->values[0], coefficients->values[1], coefficients->values[2], coefficients->values[3]);
 
     pcl::ExtractIndices<PointT> eifilter (true); // Initializing with true will allow us to extract the removed indices
 
@@ -124,7 +279,7 @@ bool segmentDigitPlane(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, boos
     eifilter.setIndices (inliers);
     eifilter.filter (*cloud_filtered);
 
-    ROS_INFO("Filtering done");
+    ROS_DEBUG("Filtering done");
 
     if(inliers->indices.size() < 100){
         return false;
@@ -140,13 +295,13 @@ bool segmentDigitPlane(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, boos
     std::vector<pcl::PointIndices> cluster_indices;
 
     pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
-    ec.setClusterTolerance (0.02); // 2cm
+    ec.setClusterTolerance (0.05); // 2cm
     ec.setMinClusterSize (100);
     ec.setMaxClusterSize (250000);
     ec.setSearchMethod (tree);
     ec.setInputCloud (cloud_filtered);
     ec.extract (cluster_indices);
-    ROS_INFO("Extraction done: %d", cluster_indices.size());
+    ROS_DEBUG("Extraction done: %d", cluster_indices.size());
 
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);
@@ -235,15 +390,15 @@ std::vector<Eigen::Vector3f> getPlaneRectangle(boost::shared_ptr< pcl::PointClou
     return table_top_bbx;
 }
 
-sensor_msgs::PointCloud2 plane_msg;
-
 void callback(const sensor_msgs::Image::ConstPtr &image_msg,
               const sensor_msgs::CameraInfo::ConstPtr& info_msg,
               const sensor_msgs::PointCloud2::ConstPtr& pc_msg){
-    ROS_INFO("Callback");
-    ROS_INFO("image: %s", image_msg->header.frame_id.c_str());
-    ROS_INFO("info: %s", info_msg->header.frame_id.c_str());
-    ROS_INFO("pc: %s", pc_msg->header.frame_id.c_str());
+    //ROS_INFO("Callback");
+    //ROS_INFO("image: %s", image_msg->header.frame_id.c_str());
+    //ROS_INFO("info: %s", info_msg->header.frame_id.c_str());
+    //ROS_INFO("pc: %s", pc_msg->header.frame_id.c_str());
+    ros::WallTime start_proc_time = ros::WallTime::now();
+
     cv_bridge::CvImageConstPtr cv_ptr;
     try
     {
@@ -262,158 +417,123 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
 
     boost::shared_ptr< pcl::PointCloud<PointT> > cloud(new pcl::PointCloud<PointT>);
     pcl::fromROSMsg(*pc_msg, *cloud);
-    ROS_INFO("Original: %d", cloud->size());
-    filterDepth(cloud);
-    ROS_INFO("Depth: %d", cloud->size());
-    filterHeight(cloud);
-    ROS_INFO("Height: %d", cloud->size());
-    sensor_msgs::PointCloud2 filterd_msg;
-    pcl::toROSMsg(*cloud, filterd_msg);
-    plane_pub.publish(filterd_msg);
+    //ROS_INFO("Original: %d", cloud->size());
 
-    boost::shared_ptr< pcl::PointCloud<PointT> > cloud_plane(new pcl::PointCloud<PointT>);
-    pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
-    pcl::PointCloud<pcl::PointXYZ>::Ptr convex_hull (new pcl::PointCloud<pcl::PointXYZ>);
-    if(!segmentDigitPlane(cloud, cloud_plane, coefficients, convex_hull)){
-        ROS_DEBUG("Segmentation failed");
-        return;
-    }
-    const std::vector<Eigen::Vector3f> plane_rect = getPlaneRectangle(cloud_plane, coefficients);
+    filterVoxel(cloud, 0.02);
 
-    geometry_msgs::PolygonStamped plane_poly;
-    plane_poly.header.frame_id = pc_msg->header.frame_id;
-    plane_poly.header.stamp = ros::Time::now();
 
-    image_geometry::PinholeCameraModel cam_model;
-    cam_model.fromCameraInfo(*info_msg);
+    //filterDepth(cloud);
+    //ROS_INFO("Depth: %d", cloud->size());
+    //filterHeight(cloud);
+    //ROS_INFO("Height: %d", cloud->size());
 
-    std::vector<cv::Point> img_poly;
-    ROS_INFO("IMG: %d, %d", img.cols, img.rows);
-
-    tf::StampedTransform transform;
+    tf::StampedTransform trans_to_base_link;
     try{
-        listener->lookupTransform(pc_msg->header.frame_id, image_msg->header.frame_id,
-                                  ros::Time(0), transform);
+      listener->lookupTransform("base_link", pc_msg->header.frame_id,
+                                  ros::Time(0), trans_to_base_link);
     }
     catch (tf::TransformException &ex) {
         ROS_ERROR("Lookup Transform failed: %s",ex.what());
         return;
     }
 
-    cv::Point2f src[4], dst[4];
+    tf::transformTFToEigen(trans_to_base_link, to_base_link_);
 
-    float max_x = 0, min_x = 1000;
-    float max_y = 0, min_y = 1000;
-
-
-
-    for (size_t i= 0 ; i < 4; ++i){
-        geometry_msgs::Point32 tmp;
-        tmp.x = plane_rect[i].x();
-        tmp.y = plane_rect[i].y();
-        tmp.z = plane_rect[i].z();
-
-        tf::Point v3(plane_rect[i].x(), plane_rect[i].y(), plane_rect[i].z());
-        v3 = transform * v3;
-        plane_poly.polygon.points.push_back(tmp);
-        cv::Point3d cvP(v3.x(), v3.y(), v3.z());
-        cv::Point2f imgPoint = cam_model.project3dToPixel(cvP);
-        cv::Point point((int) imgPoint.x, (int) imgPoint.y);
-
-        if(max_x < imgPoint.x){
-            max_x = imgPoint.x;
-        }
-        if(min_x > imgPoint.x){
-            min_x = imgPoint.x;
-        }
-        if(max_y < imgPoint.y){
-            max_y = imgPoint.y;
-        }
-        if(min_y > imgPoint.y){
-            min_y = imgPoint.y;
-        }
-
-        img_poly.push_back(point);
-        src[i] = imgPoint;
-
-        ROS_DEBUG("x: %d, y: %d", point.x, point.y);
+    tf::StampedTransform transform_to_rgb_frame;
+    try{
+      listener->lookupTransform(pc_msg->header.frame_id, image_msg->header.frame_id,
+                                ros::Time(0), transform_to_rgb_frame);
     }
-    poly_pub.publish(plane_poly);
-
-    float avg_x = ((max_x - min_x)/2 + min_x);
-    float avg_y = ((max_y - min_y)/2 + min_y);
-    ROS_DEBUG("max_x: %f", max_x);
-    ROS_DEBUG("min_x: %f", min_x);
-    ROS_DEBUG("max_y: %f", max_y);
-    ROS_DEBUG("min_y: %f", min_y);
-    ROS_DEBUG("avg_x: %f", avg_x);
-    ROS_DEBUG("avg_y: %f", avg_y);
-
-    for (size_t i= 0 ; i < 4; ++i){
-        cv::Point2f point = src[i];
-        if(point.x <= avg_x){
-            if(point.y <= avg_y){
-                dst[i] = (cv::Point2f(0,0));
-            }else{
-                dst[i] = (cv::Point2f(0,480));
-            }
-        }else {
-            if(point.y <= avg_y){
-                dst[i] = (cv::Point2f(640,0));
-            } else{
-                dst[i] = (cv::Point2f(640,480));
-            }
-        }
-    }
-    for (size_t i= 0 ; i < 4; ++i){
-
-        ROS_DEBUG("src: %f, y: %f", src[i].x, src[i].y);
-        ROS_DEBUG("dst: %f, y: %f", dst[i].x, dst[i].y);
-
+    catch (tf::TransformException &ex) {
+      ROS_ERROR("Lookup Transform failed: %s",ex.what());
+      return;
     }
 
-    cv::Mat M = cv::getPerspectiveTransform(src, dst);
-    cv::warpPerspective(img, img, M, cv::Size(640, 480));
 
-    hector_digit_detection_msgs::Image2Digit image2digit;
+    // Transform to base_link
+    boost::shared_ptr< pcl::PointCloud<PointT> > cloud_tmp(new pcl::PointCloud<PointT>);
+    pcl::transformPointCloud(*cloud, *cloud_tmp, to_base_link_);
+    cloud = cloud_tmp;
 
-    cv_bridge::CvImage out_msg;
-    out_msg.header   = image_msg->header;
-    out_msg.encoding = image_msg->encoding;
-    out_msg.image    = img;
+    // Filter height in base_link frame
+    filterHeight(cloud, "z", 0.5, 1.5);
 
-    out_msg.toImageMsg(image2digit.request.data);
+    // Publish filtered cloud to ROS for debugging
+    if (plane_pub.getNumSubscribers() > 0){
+      sensor_msgs::PointCloud2 filtered_msg;
+      pcl::toROSMsg(*cloud, filtered_msg);
+      filtered_msg.header.frame_id = "base_link";
+      plane_pub.publish(filtered_msg);
+    }
 
-    sensor_msgs::Image new_msg;
+    boost::shared_ptr< pcl::PointCloud<PointT> > cloud_plane(new pcl::PointCloud<PointT>);
+    pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr convex_hull (new pcl::PointCloud<pcl::PointXYZ>);
 
-    out_msg.toImageMsg(new_msg);
+    if(!segmentDigitPlane(cloud, cloud_plane, coefficients, convex_hull)){
+        ROS_DEBUG("Segmentation failed");
+        return;
+    }
 
-    image_pub.publish(new_msg);
+    const std::vector<Eigen::Vector3f> plane_rect_base_link = getPlaneRectangle(cloud_plane, coefficients);
 
-    if(digit_service.call(image2digit)){
-	if(image2digit.response.digit >= 0){
-		ROS_INFO("Number found: %d", image2digit.response.digit);
-		hector_worldmodel_msgs::PosePercept percept;
-		percept.header = pc_msg->header;
-		percept.info.class_id = "unload_fiducial";
-		percept.info.class_support = 1.0;
+    publishPolygonMsg(plane_rect_base_link, pc_msg->header);
 
-		percept.info.object_support = 0.01;
-		std::stringstream sstr;
-		sstr << image2digit.response.digit;
-		sstr >> percept.info.name;
+    image_geometry::PinholeCameraModel cam_model;
+    cam_model.fromCameraInfo(*info_msg);
 
-		percept.pose.pose.position.x = plane_rect[0].x();
-		percept.pose.pose.position.y = plane_rect[0].y();
-		percept.pose.pose.position.z = plane_rect[0].z();
 
-		percept.pose.pose.orientation = tf::createQuaternionMsgFromYaw(0);
-		percept_publisher_.publish(percept);
-	}else{
-		ROS_INFO("No Number found");
-	}
-    }else{
+    std::vector<RectanglePointData> plane_rect_data_ordered;
+    bool is_digit_sign = checkGeometryProperties(plane_rect_base_link, cam_model, transform_to_rgb_frame, plane_rect_data_ordered);
+
+    // Only process image data if we actually have detected a digit
+    if (is_digit_sign){
+
+      cv_bridge::CvImage out_msg;
+      out_msg.header   = image_msg->header;
+      out_msg.encoding = image_msg->encoding;
+
+      getPerspectiveTransformedImage(plane_rect_data_ordered, img, out_msg.image);
+
+
+
+      hector_digit_detection_msgs::Image2Digit image2digit;
+
+      out_msg.toImageMsg(image2digit.request.data);
+
+      if (image_pub.getNumSubscribers() > 0){
+        sensor_msgs::Image new_msg;
+        out_msg.toImageMsg(new_msg);
+        image_pub.publish(new_msg);
+      }
+
+      ROS_INFO("Plane detect total proc time: %f milliseconds", (ros::WallTime::now() - start_proc_time).toSec()*1000.0);
+
+      if(digit_service.call(image2digit)){
+        if(image2digit.response.digit >= 0){
+          ROS_INFO("Number found: %d", image2digit.response.digit);
+          hector_worldmodel_msgs::PosePercept percept;
+          percept.header = pc_msg->header;
+          percept.info.class_id = "unload_fiducial";
+          percept.info.class_support = 1.0;
+
+          percept.info.object_support = 0.01;
+          std::stringstream sstr;
+          sstr << image2digit.response.digit;
+          sstr >> percept.info.name;
+
+          //percept.pose.pose.position.x = plane_rect[0].x();
+          //percept.pose.pose.position.y = plane_rect[0].y();
+          //percept.pose.pose.position.z = plane_rect[0].z();
+
+          percept.pose.pose.orientation = tf::createQuaternionMsgFromYaw(0);
+          percept_publisher_.publish(percept);
+        }else{
+          ROS_INFO("No Number found");
+        }
+      }else{
         ROS_ERROR("Service call failed");
+      }
     }
 }
 
@@ -427,9 +547,11 @@ int main(int argc, char** argv)
 
     nh_.getParam("wall_distance", wall_distance);
     nh_.getParam("plane_height", plane_height);
+    nh_.getParam("sign_width", sign_width);
+    nh_.getParam("sign_height", sign_height);
+    nh_.getParam("width_tolerance", sign_width_tolerance);
+    nh_.getParam("height_tolerance", sign_height_tolerance);
 
-    ROS_INFO("Using Wall distance: %f", wall_distance);
-    ROS_INFO("Using Plane height: %f", plane_height);
 
     image_transport::ImageTransport it_(nh_);
 
