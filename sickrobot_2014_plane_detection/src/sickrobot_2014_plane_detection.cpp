@@ -495,8 +495,6 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
 
       getPerspectiveTransformedImage(plane_rect_data_ordered, img, out_msg.image);
 
-
-
       hector_digit_detection_msgs::Image2Digit image2digit;
 
       out_msg.toImageMsg(image2digit.request.data);
@@ -513,7 +511,8 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
         if(image2digit.response.digit >= 0){
           ROS_INFO("Number found: %d", image2digit.response.digit);
           hector_worldmodel_msgs::PosePercept percept;
-          percept.header = pc_msg->header;
+          percept.header.stamp = pc_msg->header.stamp;
+          percept.header.frame_id = "base_link";
           percept.info.class_id = "unload_fiducial";
           percept.info.class_support = 1.0;
 
@@ -522,11 +521,17 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
           sstr << image2digit.response.digit;
           sstr >> percept.info.name;
 
-          //percept.pose.pose.position.x = plane_rect[0].x();
-          //percept.pose.pose.position.y = plane_rect[0].y();
-          //percept.pose.pose.position.z = plane_rect[0].z();
+          Eigen::Vector3f centroid_coords(
+               (plane_rect_data_ordered[0].point_base_link +
+                plane_rect_data_ordered[1].point_base_link +
+                plane_rect_data_ordered[2].point_base_link +
+                plane_rect_data_ordered[3].point_base_link) * 0.25 );
 
-          percept.pose.pose.orientation = tf::createQuaternionMsgFromYaw(0);
+          percept.pose.pose.position.x = centroid_coords.x();
+          percept.pose.pose.position.y = centroid_coords.y();
+          percept.pose.pose.position.z = centroid_coords.z();
+
+          percept.pose.pose.orientation = tf::createQuaternionMsgFromYaw(atan2(centroid_coords.y(), centroid_coords.x()));
           percept_publisher_.publish(percept);
         }else{
           ROS_INFO("No Number found");
