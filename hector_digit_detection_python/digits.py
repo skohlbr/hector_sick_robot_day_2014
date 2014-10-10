@@ -36,7 +36,12 @@ def image2digit_service(data):
     image2_contours = cv2.bitwise_not(image2)
     contours, _ = cv2.findContours(image2_contours, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     moments = map(cv2.moments, contours)
-    moments,contours = zip(*filter(lambda (mmnt,_): mmnt['m00'] != 0, zip(moments, contours)))
+    pairs = filter(lambda (mmnt,_): mmnt['m00'] != 0, zip(moments, contours))
+    if len(pairs) > 0:
+        moments,contours = zip(*pairs)
+    else:
+        moments,contours = [],[]
+
     centroids = map(lambda mmnt: (mmnt['m10']/mmnt['m00'], mmnt['m01']/mmnt['m00']), moments)
 
     hy,hx = image2.shape[:2]
