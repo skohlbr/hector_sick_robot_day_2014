@@ -61,8 +61,8 @@ ros::ServiceClient digit_service;
 
 double sign_width = 0.6;
 double sign_height = 0.84;
-double sign_width_tolerance = 200.0;
-double sign_height_tolerance = 200.0;
+double sign_width_tolerance = 0.2;
+double sign_height_tolerance = 0.2;
 double height_cutoff_min = 0.5;
 double height_cutoff_max = 1.5;
 
@@ -207,6 +207,28 @@ bool checkGeometryProperties(const std::vector<Eigen::Vector3f>& plane_rect,
         plane_rect_data_ordered[UPPER_RIGHT] = plane_rect_data_unordered[i];
       }
     }
+  }
+
+  double height_left  = (plane_rect_data_ordered[BOTTOM_LEFT].point_base_link - plane_rect_data_ordered[UPPER_LEFT].point_base_link).norm();
+  double height_right = (plane_rect_data_ordered[BOTTOM_RIGHT].point_base_link - plane_rect_data_ordered[UPPER_RIGHT].point_base_link).norm();
+  double width_top    = (plane_rect_data_ordered[UPPER_LEFT].point_base_link - plane_rect_data_ordered[UPPER_RIGHT].point_base_link).norm();
+  double width_bottom = (plane_rect_data_ordered[BOTTOM_LEFT].point_base_link - plane_rect_data_ordered[BOTTOM_RIGHT].point_base_link).norm();
+
+  if ( (height_left > (sign_height + sign_height_tolerance) ) || (height_left < (sign_height - sign_height_tolerance) )){
+    ROS_DEBUG("Left height out of threshold: %f", height_left);
+    return false;
+  }
+  if ( (height_right > (sign_height + sign_height_tolerance) ) || (height_right < (sign_height - sign_height_tolerance) )){
+    ROS_DEBUG("Right height out of threshold: %f", height_right);
+    return false;
+  }
+  if ( (width_top > (sign_width + sign_width_tolerance) ) || (width_top < (sign_width - sign_width_tolerance) )){
+    ROS_DEBUG("Top width out of threshold: %f", width_top);
+    return false;
+  }
+  if ( (width_bottom > (sign_width + sign_width_tolerance) ) || (width_bottom < (sign_width - sign_width_tolerance) )){
+    ROS_DEBUG("Bottom width out of threshold: %f", width_bottom);
+    return false;
   }
 
   return true;
