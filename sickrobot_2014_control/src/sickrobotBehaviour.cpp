@@ -804,6 +804,7 @@ protected:
         ROS_INFO("state: positioning");
         geometry_msgs::PointStamped point;
         point.point=current_target.pose.pose.position;
+
         //try to use orientation to get driveToGoal OR try to get connection between poition and middle point.
 
         // wir fahren erstmal da hin damit wir sichtkontakt haben, um dann die normale berechnen zu können
@@ -825,6 +826,7 @@ protected:
         //        point.point.z=0.0;
 
         point.header.frame_id=current_target.header.frame_id;
+        std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! HEDER_"<<point.header.frame_id <<std::endl;
         point.header.stamp=current_target.header.stamp;
 
         geometry_msgs::Point my_pos;
@@ -904,6 +906,7 @@ protected:
 
 
               if (is_known){
+                  std::cout << "  unser current goal vor positioning " << current_target.info.object_id << "   pose:  "<< current_target.pose.pose.position.x <<","<<current_target.pose.pose.position.y << std::endl;
                 _state=STATE_POSITIONING;
               }
               else{
@@ -1330,6 +1333,8 @@ protected:
 
 
         geometry_msgs::PointStamped point_in_base_link;
+
+        point.header.stamp=ros::Time(0);
         try
         {
             tf_listener.transformPoint("base_link", point,point_in_base_link);
@@ -1348,7 +1353,7 @@ protected:
 
         geometry_msgs::PointStamped my_pos_base_link;
         geometry_msgs::PointStamped my_pos_map;
-        my_pos_map.header.stamp=ros::Time::now();
+        my_pos_map.header.stamp=point.header.stamp;
         my_pos_map.header.frame_id="map";
         my_pos_map.point=my_pos;
         try
@@ -1372,10 +1377,10 @@ protected:
         geometry_msgs::Point end_point;
 
         ros::Time base_time;
-        base_time=ros::Time::now();
+
         for (int i=0;i<5;i++){
             getDist_srv.request.point=direction;
-            getDist_srv.request.point.header.stamp = base_time;
+            getDist_srv.request.point.header.stamp = ros::Time(0);
             getDist_srv.request.point.header.frame_id="base_link";
 
             getDist_client.call(getDist_srv);
@@ -1421,6 +1426,7 @@ protected:
 
 
         }
+        std::cout<< "!!!!!!!!!!!!!!!!!!!!!! HEDER FOR BLAU " << point_in_base_link.header.frame_id <<std::endl;
 
         if (m_marker_points.getNumSubscribers() > 0  ){
 
@@ -1526,8 +1532,8 @@ protected:
         tf::StampedTransform trans;
         try
         {
-            tf_listener.waitForTransform("/map", "/base_link", point.header.stamp, ros::Duration(4.0));
-            tf_listener.lookupTransform("/map","/base_link", point.header.stamp, trans);
+            tf_listener.waitForTransform("/map", "/base_link", ros::Time(0), ros::Duration(4.0));
+            tf_listener.lookupTransform("/map","/base_link", ros::Time(0), trans);
         }
         catch (tf::TransformException ex)
         {
