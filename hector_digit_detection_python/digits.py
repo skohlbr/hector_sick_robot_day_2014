@@ -46,7 +46,7 @@ def image2digit_service(data):
     distances = map(lambda ctr: numpy.linalg.norm((cx-ctr[0],cy-ctr[1])), centroids)
     if len(distances) > 0:
         mini, mind = min(enumerate(distances), key = operator.itemgetter(1))
-        print 'Connected component with min distance %d %f' %  (mini, mind)
+        # print 'Connected component with min distance %d %f' %  (mini, mind)
         # print contours[mini]
         x,y,w,h = cv2.boundingRect(contours[mini])
         image2 = image2[y:y+h,x:x+w]
@@ -92,7 +92,7 @@ def image2digit_service(data):
 			except ValueError:
 				digit = -1
 
-    print 'Data = %sDigit = %d' % (data, digit)
+    #print 'Data = %sDigit = %d' % (data, digit)
     return digit, 0.0
 
 if __name__ == '__main__':
