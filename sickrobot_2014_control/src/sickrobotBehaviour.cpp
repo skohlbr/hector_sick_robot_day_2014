@@ -210,10 +210,13 @@ protected:
                 break;
             case STATE_EXPLORATION:
                 exploration_task();
+                break;
             case STATE_UNLOAD_CARGO:
                 unload_cargo_task();
+                break;
             case STATE_DRIVE_TO_LOAD_STATION:
                 drive_to_load_station_task();
+                break;
             case STATE_STOP:
                 _state_lock = false;
                 break;
@@ -578,7 +581,7 @@ protected:
     void exploration_task(){
         //do this kind of wall following till current target station is known
         bool trafo_went_wrong=false;
-        ROS_INFO("started exloration");
+        ROS_INFO("state: started exloration");
         bool is_known=false;
         hector_nav_msgs::GetDistanceToObstacle getDist_srv;
 
@@ -753,7 +756,10 @@ protected:
 
 
             drive_to_goal_failure_resistent(circle_point,cos(calc_yaw+M_PI)*0.2,sin(calc_yaw+M_PI)*0.2,0.0);
-//            mbClient->sendGoal(circle_point);
+
+
+
+            //            mbClient->sendGoal(circle_point);
 
 //            mbClient->waitForResult();
 
@@ -777,6 +783,8 @@ protected:
                 if ((object.info.class_id=="unload_fiducial")&&(present_holzklotz==curr_number_unload_station)){
                     is_known=true;
                     current_target=object;
+                     _state=STATE_DRIVE_TO_UNLOAD_STATION;
+                    return;
                 }
 
             }
