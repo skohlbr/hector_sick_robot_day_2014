@@ -31,8 +31,6 @@ def image2digit_service(data):
     image2 = cv2.resize(image2, (int(w2 * (target_height / h2)), int(target_height)))
 
     h2,w2 = image2.shape[:2]
-    image2 = image2[3:h2-3,3:w2-3]
-    h2,w2 = image2.shape[:2]
     image2 = cv2.adaptiveThreshold(image2, 255, 1, cv2.THRESH_BINARY, 11, 2)
 
     image2_contours = cv2.bitwise_not(image2)
