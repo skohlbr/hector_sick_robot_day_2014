@@ -304,35 +304,27 @@ protected:
 
         std::cout << "pos x:" <<my_pos.x << "   pos_y:"<<my_pos.y << "   my pos z:" <<my_pos.z<<   "yaw  " <<my_yaw <<std::endl;
         move_base_msgs::MoveBaseGoal goal;
+
+
+
         goal.target_pose.header.frame_id = "map";
         goal.target_pose.header.stamp = ros::Time::now();
 
-        goal.target_pose.pose.position.x = my_pos.x+getDist_srv.response.distance-distance_to_wall_first_drive;//*cos(my_yaw);
+        goal.target_pose.pose.position.x = my_pos.x+getDist_srv.response.distance-distance_to_wall_first_drive ;//*cos(my_yaw);
         goal.target_pose.pose.position.y = my_pos.y;//+1*sin(my_yaw);
         goal.target_pose.pose.position.z = my_pos.z;
         goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(0);
 
+
+
         ROS_INFO("Sending goal");
-        mbClient->sendGoal(goal);
-
-        mbClient->waitForResult();
-
-        if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
-            ROS_INFO("Great we reached the goal");
-
-            // setState(STATE_STOP);
-            // return;
-        }
-
-        else {
-            ROS_INFO("That was bad, we didn't reach our goal");
-        }
+        drive_to_goal_failure_resistent(goal,-0.1,0.0,0.0);
 
 
 
         // if we do not see it now continue driving towards wall in 0.2 steps -> may be do something else?
-
-        while (_number_objects==0){
+        bool found_first_load_station_target=false;
+        while (!found_first_load_station_target){
             geometry_msgs::Point my_pos;
             float                my_yaw;
 
@@ -368,6 +360,39 @@ protected:
             else {
                 ROS_INFO("That was bad, we didn't reach our goal");
             }
+
+            if(_number_objects>0){
+              geometry_msgs::Point my_pos_curr;
+              float                my_yaw_curr;
+
+              getCurrentPosition(&my_pos_curr, &my_yaw_curr);
+
+              for (int i=0;i< objects->objects.size();i++){
+                  hector_worldmodel_msgs::Object object = objects->objects[i];
+                  std::stringstream sstr;
+                  sstr << object.info.name;
+                  int curr_number_unload_station;
+                  sstr >> curr_number_unload_station;
+
+                  if (object.info.class_id=="target_fiducial"){
+                    double dist_target=sqrt((object.pose.pose.position.x-my_pos_curr.x)*(object.pose.pose.position.x-my_pos_curr.x)+(object.pose.pose.position.y-my_pos_curr.y)*(object.pose.pose.position.y-my_pos_curr.y));
+
+                    //check if there is a target in a certain radius around us NEED case we dont know this target yet!!!!
+                    if(dist_target<2.0){
+                      found_first_load_station_target=true;
+                      current_target=object;}
+                  }
+
+              }
+
+
+
+
+
+
+            }
+
+
 
         }
         current_target = objects->objects[0];
@@ -1144,6 +1169,44 @@ protected:
     //  }
 
 
+
+    bool drive_to_goal_failure_resistent(move_base_msgs::MoveBaseGoal goal,double dirx,double diry, double dirz){
+
+      bool sucessful=false;
+      int failures=0;
+      while((!sucessful)||(failures>20)){
+      goal.target_pose.header.frame_id = "map";
+
+
+      goal.target_pose.pose.position.x = goal.target_pose.pose.position.x +dirx*failures;
+      goal.target_pose.pose.position.y =goal.target_pose.pose.position.y +diry*failures ;
+      goal.target_pose.pose.position.z = goal.target_pose.pose.position.z +dirz*failures;
+
+      ROS_INFO("Sending goal");
+      mbClient->sendGoal(goal);
+
+      mbClient->waitForResult();
+
+
+      if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+          ROS_INFO("Great we reached the goal");
+          sucessful=true;
+
+          // setState(STATE_STOP);
+          return true;
+      }
+
+      else {
+          ROS_INFO("That was bad, we didn't reach our goal");
+          failures=failures+1;
+      }
+
+      }
+      return false;
+
+
+
+    }
 
     void getCurrentPosition_time(geometry_msgs::Point *pos, float *yaw,ros::Time &time )
     {
