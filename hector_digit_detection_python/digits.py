@@ -2,6 +2,7 @@
 
 import cv2
 import numpy
+import operator
 import rospy
 import subprocess
 
@@ -25,6 +26,7 @@ def image2digit_service(data):
     if len(image2.shape) > 2 and image2.shape[2] > 2:
         image2 = cv2.cvtColor(image2, cv2.COLOR_BGR2GRAY)
 
+
     h2,w2 = image2.shape[:2]
     image2 = cv2.resize(image2, (int(w2 * (target_height / h2)), int(target_height)))
 
@@ -32,6 +34,25 @@ def image2digit_service(data):
     image2 = image2[3:h2-3,3:w2-3]
     h2,w2 = image2.shape[:2]
     image2 = cv2.adaptiveThreshold(image2, 255, 1, cv2.THRESH_BINARY, 11, 2)
+
+    ##labeled_image, stats, centroids = cv2.connectedComponentsWithStats(image2)
+    ##labeled_image = cv2.connectedComponents(image2)
+
+    #contours, _ = cv2.findContours(image2, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    #for c in contours:
+        #img = cv2.contourArea(c)
+        #largeMask = np.zeros((img.shape[0]+2, img.shape[1]+2), np.uint8)
+        #cv2.floodFill(img, largeMask)
+
+    ## center of image
+    #hy,hx = image2.shape[:2]
+    #cx = hx / 2
+    #cy = hy / 2
+
+    #distances = map(lambda ctr: numpy.linalg.norm((cx,cy) - ctr), centroids[1:])
+    #mini, mind = min(enumerate(distances), key=itemgetter(1))
+    #mini = mini + 1
+    #print 'Connected component with min distance %d %f' %  (mini, mind)
 
     image2 = cv2.resize(image2, (int(w2 * (target_height / h2)), int(target_height)))
 
@@ -73,7 +94,7 @@ def image2digit_service(data):
             #print 'ord(%s) = %d' % (data[6], ord(data[6]))
 		if data[6] == 'O':
 			digit = 0
-                else if len(data) >= 8:
+                elif len(data) >= 8:
 			try:
 				digit = int(data[7])
 			except ValueError:
