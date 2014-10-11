@@ -64,7 +64,7 @@ public:
         holzklotzSubscriber = root.subscribe<std_msgs::Int32>("holzklotz_number", 10, &sickrobot_behaviour::holzklotzCb, this);
         //worldmodel_objects_sub = root.subscribe<std_msgs::Int32>("holzklotz_number", 10, &sickrobot_behaviour::holzklotzCb, this);
         modelSubscriber = worldmodel.subscribe("objects", 10, &sickrobot_behaviour::objectsCb, this);
-
+        stop_topic=root.subscribe("stop_behaviour", 10, &sickrobot_behaviour::stopCb, this);
         ros::NodeHandle sick_nh(std::string("~"));
         startMission = sick_nh.advertiseService("/sickrobot/start_mission", &sickrobot_behaviour::startMissionCb, this);
         m_marker_points = sick_nh.advertise<visualization_msgs::MarkerArray>("/sickrobot/endpoints", 1, false);
@@ -439,7 +439,12 @@ protected:
         float normal_slope_x;
         float normal_slope_y;
         //mayb need to transform point to baselink first !!!!
-        getNormal(point,normal_slope_x,normal_slope_y);
+
+        if (_has_cargo){
+        getNormal(point,normal_slope_x,normal_slope_y,0.5);}
+        else{
+            getNormal(point,normal_slope_x,normal_slope_y,0.3);
+        }
 
         geometry_msgs::Point my_pos;
         float                my_yaw;
@@ -928,7 +933,7 @@ protected:
             float normal_slope_x;
             float normal_slope_y;
 
-            getNormal(point,normal_slope_x,normal_slope_y);
+            getNormal(point,normal_slope_x,normal_slope_y,0.5);
 
             move_base_msgs::MoveBaseGoal fine_goal;
             fine_goal.target_pose.header.frame_id = "map";
@@ -1497,7 +1502,7 @@ protected:
         }
     }
 
-    void getNormal(geometry_msgs::PointStamped point,float &normal_slope_x,float &normal_slope_y){
+    void getNormal(geometry_msgs::PointStamped point,float &normal_slope_x,float &normal_slope_y,float kreuz_distance){
 
 
         geometry_msgs::PointStamped point_in_base_link;
@@ -1580,16 +1585,16 @@ protected:
             directions.push_back(direction.point);
 
             if (i==0){
-                direction.point.x=direction.point.x+0.5;}
+                direction.point.x=direction.point.x+kreuz_distance;}
             else if (i==1){
-                direction.point.x=direction.point.x-1.0;
+                direction.point.x=direction.point.x-kreuz_distance*2;
             }
             else if (i==2){
-                direction.point.x=direction.point.x+0.5;
-                direction.point.y=direction.point.y+0.5;
+                direction.point.x=direction.point.x+kreuz_distance;
+                direction.point.y=direction.point.y+kreuz_distance;
             }
             else if (i==3){
-                direction.point.y=direction.point.y-1.0;
+                direction.point.y=direction.point.y-kreuz_distance*2;
             }
 
 
@@ -1799,6 +1804,7 @@ private:
 
     ros::Subscriber holzklotzSubscriber;
     ros::Subscriber worldmodel_objects_sub;
+    ros::Subscriber stop_topic;
 
     tf::TransformListener tf_listener;
 
@@ -1926,6 +1932,13 @@ private:
         }
     }
 
+
+    void stopCb(const std_msgs::Int32 stop)
+    {  if (stop.data==1){
+            _state=STATE_STOP;
+        }
+
+    }
 
     void objectsCb(const hector_worldmodel_msgs::ObjectModelConstPtr& objectModel)
     {
