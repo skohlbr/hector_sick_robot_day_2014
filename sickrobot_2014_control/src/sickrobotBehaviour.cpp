@@ -386,7 +386,8 @@ protected:
                     //check if there is a target in a certain radius around us NEED case we dont know this target yet!!!!
                     if(dist_target<2.0){
                       found_first_load_station_target=true;
-                      current_target=object;}
+                      current_target=object;
+                    first_load_station=object;}
                   }
 
               }
@@ -401,8 +402,7 @@ protected:
 
 
         }
-        current_target = objects->objects[0];
-        first_load_station=objects->objects[0];
+
 
         geometry_msgs::Point my_pos_now;
         float                my_yaw_now;
