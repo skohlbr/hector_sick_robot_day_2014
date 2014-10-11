@@ -87,6 +87,7 @@ void filterDepth(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud){
     no_ground_pass.setInputCloud (cloud);
     no_ground_pass.setFilterFieldName ("z");
     //no_ground_pass.setFilterLimits (wall_distance - 1.0, wall_distance + 1.0);
+    no_ground_pass.setFilterLimits (0.8, 3.5);
 
     no_ground_pass.filter (*cloud_filtered);
 
@@ -453,10 +454,10 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
   pcl::fromROSMsg(*pc_msg, *cloud);
   //ROS_INFO("Original: %d", cloud->size());
 
+  filterDepth(cloud);
+
   filterVoxel(cloud, 0.02);
 
-
-  //filterDepth(cloud);
   //ROS_INFO("Depth: %d", cloud->size());
   //filterHeight(cloud);
   //ROS_INFO("Height: %d", cloud->size());
@@ -565,7 +566,6 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
         image_pub.publish(new_msg);
       }
 
-      ROS_INFO("Plane detect total proc time: %f milliseconds", (ros::WallTime::now() - start_proc_time).toSec()*1000.0);
 
       if(digit_service.call(image2digit)){
         if(image2digit.response.digit >= 0){
@@ -601,6 +601,8 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
       }
     }
   }
+  ROS_INFO("Plane detect total proc time: %f milliseconds", (ros::WallTime::now() - start_proc_time).toSec()*1000.0);
+
 }
 
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::CameraInfo, sensor_msgs::PointCloud2> ApproximateTimeSyncPolicy;
