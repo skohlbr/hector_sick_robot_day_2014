@@ -389,9 +389,12 @@ protected:
 
                     //check if there is a target in a certain radius around us NEED case we dont know this target yet!!!!
                     if(dist_target<2.0){
+                        if(object.state.state==2){
                       found_first_load_station_target=true;
                       current_target=object;
-                    first_load_station=object;}
+                    first_load_station=object;
+                        }
+                    }
                   }
 
               }
@@ -579,9 +582,11 @@ protected:
             sstr >> curr_number_unload_station;
             if ((object.info.class_id=="unload_fiducial")&&(present_holzklotz==curr_number_unload_station)){
                 if(object.info.support>best_support){
+                    if(object.state.state==2){
                 station_known=true;
                 current_target=object;
                 best_support=object.info.support;
+                    }
                 }
             }
 
@@ -801,7 +806,7 @@ protected:
 //                ROS_INFO("That was bad, we didn't reach our goal");
 //            }
             // }
-
+            double best_support=0.0;
             for (int i=0;i< objects->objects.size();i++){
                 hector_worldmodel_msgs::Object object = objects->objects[i];
                 std::stringstream sstr;
@@ -809,10 +814,14 @@ protected:
                 int curr_number_unload_station;
                 sstr >> curr_number_unload_station;
                 if ((object.info.class_id=="unload_fiducial")&&(present_holzklotz==curr_number_unload_station)){
+
+                    if(object.info.support>best_support){
+                        if(object.state.state==2){
                     is_known=true;
                     current_target=object;
-                     _state=STATE_DRIVE_TO_UNLOAD_STATION;
-                    return;
+                    best_support=object.info.support;
+                        }
+                    }
                 }
 
             }
@@ -900,11 +909,12 @@ protected:
 
                   //check if there is a target in a certain radius around us NEED case we dont know this target yet!!!!
                   if(dist_target<2.0){
-
+                      if(object.state.state==2){
                     current_target=object;
                     _state=STATE_POSITIONING;
                     ROS_INFO("we already now the target, no need for extra grob-positioning");
                   return;
+                      }
                   }
                 }
 
@@ -952,8 +962,10 @@ protected:
 
                     //check if there is a target in a certain radius around us NEED case we dont know this target yet!!!!
                     if(dist_target<2.0){
+                        if(object.state.state==2){
                       is_known=true;
-                      current_target=object;}
+                      current_target=object;
+                        }}
                   }
 
               }
@@ -1049,10 +1061,12 @@ protected:
 
               //check if there is a target in a certain radius around us NEED case we dont know this target yet!!!!
               if(dist_target<2.0){
+                  if(object.state.state==2){
 
                 current_target=object;
               _state=STATE_POSITIONING;
               return;
+                  }
               }
             }
 
