@@ -308,31 +308,23 @@ bool segmentDigitPlane(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, boos
         return false;
     }
 
+    cloud_plane = cloud_filtered;
+    return true;
+
 
     //----------------- Filter out spurious stuff in the environment (Assume table is largest cluster) -----------
 
-    //Creating the KdTree object for the search method of the extraction
-    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
-    tree->setInputCloud (cloud_filtered);
-
-    std::vector<pcl::PointIndices> cluster_indices;
-
-    pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
-    ec.setClusterTolerance (0.05); // 2cm
-    ec.setMinClusterSize (100);
-    ec.setMaxClusterSize (250000);
-    ec.setSearchMethod (tree);
-    ec.setInputCloud (cloud_filtered);
-    ec.extract (cluster_indices);
-    ROS_DEBUG("Extraction done: %d", cluster_indices.size());
 
 
+/*
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);
 
     if  (cluster_indices.size() > 0){
         pcl::PointIndices& indices = cluster_indices[0];
 
         size_t size = indices.indices.size();
+
+        ROS_DEBUG("Indices size: %d", size);
 
         for (size_t i = 0; i < size; ++i){
             cloud_cluster->points.push_back(cloud_filtered->points[indices.indices[i]]);
@@ -348,6 +340,23 @@ bool segmentDigitPlane(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, boos
     cloud_plane = cloud_cluster;
 
     return true;
+    */
+}
+
+void getCandidateClusters(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, std::vector<pcl::PointIndices>& cluster_indices)
+{
+  //Creating the KdTree object for the search method of the extraction
+  pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
+  tree->setInputCloud (cloud);
+
+  pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
+  ec.setClusterTolerance (0.05);
+  ec.setMinClusterSize (800);
+  ec.setMaxClusterSize (2400);
+  ec.setSearchMethod (tree);
+  ec.setInputCloud (cloud);
+  ec.extract (cluster_indices);
+  ROS_DEBUG("Extraction done: %d", cluster_indices.size());
 }
 
 std::vector<Eigen::Vector3f> getPlaneRectangle(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, pcl::ModelCoefficients::Ptr& coefficients)
@@ -416,86 +425,112 @@ std::vector<Eigen::Vector3f> getPlaneRectangle(boost::shared_ptr< pcl::PointClou
 void callback(const sensor_msgs::Image::ConstPtr &image_msg,
               const sensor_msgs::CameraInfo::ConstPtr& info_msg,
               const sensor_msgs::PointCloud2::ConstPtr& pc_msg){
-    //ROS_INFO("Callback");
-    //ROS_INFO("image: %s", image_msg->header.frame_id.c_str());
-    //ROS_INFO("info: %s", info_msg->header.frame_id.c_str());
-    //ROS_INFO("pc: %s", pc_msg->header.frame_id.c_str());
-    ros::WallTime start_proc_time = ros::WallTime::now();
+  //ROS_INFO("Callback");
+  //ROS_INFO("image: %s", image_msg->header.frame_id.c_str());
+  //ROS_INFO("info: %s", info_msg->header.frame_id.c_str());
+  //ROS_INFO("pc: %s", pc_msg->header.frame_id.c_str());
+  ros::WallTime start_proc_time = ros::WallTime::now();
 
-    cv_bridge::CvImageConstPtr cv_ptr;
-    try
-    {
-        if (sensor_msgs::image_encodings::isColor(image_msg->encoding))
-            cv_ptr = cv_bridge::toCvShare(image_msg, sensor_msgs::image_encodings::BGR8);
-        else
-            cv_ptr = cv_bridge::toCvShare(image_msg, sensor_msgs::image_encodings::MONO8);
+  cv_bridge::CvImageConstPtr cv_ptr;
+  try
+  {
+    if (sensor_msgs::image_encodings::isColor(image_msg->encoding))
+      cv_ptr = cv_bridge::toCvShare(image_msg, sensor_msgs::image_encodings::BGR8);
+    else
+      cv_ptr = cv_bridge::toCvShare(image_msg, sensor_msgs::image_encodings::MONO8);
+  }
+  catch (cv_bridge::Exception& e)
+  {
+    ROS_ERROR("cv_bridge exception: %s", e.what());
+    return;
+  }
+
+  cv::Mat img = cv_ptr->image;
+
+  boost::shared_ptr< pcl::PointCloud<PointT> > cloud(new pcl::PointCloud<PointT>);
+  pcl::fromROSMsg(*pc_msg, *cloud);
+  //ROS_INFO("Original: %d", cloud->size());
+
+  filterVoxel(cloud, 0.02);
+
+
+  //filterDepth(cloud);
+  //ROS_INFO("Depth: %d", cloud->size());
+  //filterHeight(cloud);
+  //ROS_INFO("Height: %d", cloud->size());
+
+  tf::StampedTransform trans_to_base_link;
+  try{
+    listener->lookupTransform("base_link", pc_msg->header.frame_id,
+                              ros::Time(0), trans_to_base_link);
+  }
+  catch (tf::TransformException &ex) {
+    ROS_ERROR("Lookup Transform failed: %s",ex.what());
+    return;
+  }
+
+  tf::transformTFToEigen(trans_to_base_link, to_base_link_);
+
+  tf::StampedTransform transform_to_rgb_frame;
+  try{
+    listener->lookupTransform(pc_msg->header.frame_id, image_msg->header.frame_id,
+                              ros::Time(0), transform_to_rgb_frame);
+  }
+  catch (tf::TransformException &ex) {
+    ROS_ERROR("Lookup Transform failed: %s",ex.what());
+    return;
+  }
+
+
+  // Transform to base_link
+  boost::shared_ptr< pcl::PointCloud<PointT> > cloud_tmp(new pcl::PointCloud<PointT>);
+  pcl::transformPointCloud(*cloud, *cloud_tmp, to_base_link_);
+  cloud = cloud_tmp;
+
+  // Filter height in base_link frame
+  filterHeight(cloud, "z", height_cutoff_min, height_cutoff_max);
+
+  // Publish filtered cloud to ROS for debugging
+  if (plane_pub.getNumSubscribers() > 0){
+    sensor_msgs::PointCloud2 filtered_msg;
+    pcl::toROSMsg(*cloud, filtered_msg);
+    filtered_msg.header.frame_id = "base_link";
+    plane_pub.publish(filtered_msg);
+  }
+
+  boost::shared_ptr< pcl::PointCloud<PointT> > cloud_plane(new pcl::PointCloud<PointT>);
+  pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr convex_hull (new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);
+
+
+  std::vector<pcl::PointIndices> cluster_indices;
+
+  getCandidateClusters(cloud, cluster_indices);
+
+  int max_clusters = std::min(5, (int)cluster_indices.size());
+
+  for (int i = 0; i < max_clusters; ++i){
+
+    cloud_cluster->clear();
+
+    pcl::PointIndices& indices = cluster_indices[i];
+
+    size_t size = indices.indices.size();
+
+    ROS_DEBUG("Indices size: %d", size);
+
+    for (size_t i = 0; i < size; ++i){
+      cloud_cluster->points.push_back(cloud->points[indices.indices[i]]);
     }
-    catch (cv_bridge::Exception& e)
-    {
-        ROS_ERROR("cv_bridge exception: %s", e.what());
-        return;
-    }
 
-    cv::Mat img = cv_ptr->image;
+    cloud_cluster->width = cloud_cluster->points.size ();
+    cloud_cluster->height = 1;
+    cloud_cluster->is_dense = true;
 
-    boost::shared_ptr< pcl::PointCloud<PointT> > cloud(new pcl::PointCloud<PointT>);
-    pcl::fromROSMsg(*pc_msg, *cloud);
-    //ROS_INFO("Original: %d", cloud->size());
-
-    filterVoxel(cloud, 0.02);
-
-
-    //filterDepth(cloud);
-    //ROS_INFO("Depth: %d", cloud->size());
-    //filterHeight(cloud);
-    //ROS_INFO("Height: %d", cloud->size());
-
-    tf::StampedTransform trans_to_base_link;
-    try{
-      listener->lookupTransform("base_link", pc_msg->header.frame_id,
-                                  ros::Time(0), trans_to_base_link);
-    }
-    catch (tf::TransformException &ex) {
-        ROS_ERROR("Lookup Transform failed: %s",ex.what());
-        return;
-    }
-
-    tf::transformTFToEigen(trans_to_base_link, to_base_link_);
-
-    tf::StampedTransform transform_to_rgb_frame;
-    try{
-      listener->lookupTransform(pc_msg->header.frame_id, image_msg->header.frame_id,
-                                ros::Time(0), transform_to_rgb_frame);
-    }
-    catch (tf::TransformException &ex) {
-      ROS_ERROR("Lookup Transform failed: %s",ex.what());
-      return;
-    }
-
-
-    // Transform to base_link
-    boost::shared_ptr< pcl::PointCloud<PointT> > cloud_tmp(new pcl::PointCloud<PointT>);
-    pcl::transformPointCloud(*cloud, *cloud_tmp, to_base_link_);
-    cloud = cloud_tmp;
-
-    // Filter height in base_link frame
-    filterHeight(cloud, "z", height_cutoff_min, height_cutoff_max);
-
-    // Publish filtered cloud to ROS for debugging
-    if (plane_pub.getNumSubscribers() > 0){
-      sensor_msgs::PointCloud2 filtered_msg;
-      pcl::toROSMsg(*cloud, filtered_msg);
-      filtered_msg.header.frame_id = "base_link";
-      plane_pub.publish(filtered_msg);
-    }
-
-    boost::shared_ptr< pcl::PointCloud<PointT> > cloud_plane(new pcl::PointCloud<PointT>);
-    pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
-    pcl::PointCloud<pcl::PointXYZ>::Ptr convex_hull (new pcl::PointCloud<pcl::PointXYZ>);
-
-    if(!segmentDigitPlane(cloud, cloud_plane, coefficients, convex_hull)){
-        ROS_DEBUG("Segmentation failed");
-        return;
+    if(!segmentDigitPlane(cloud_cluster, cloud_plane, coefficients, convex_hull)){
+      ROS_DEBUG("Segmentation failed");
+      break;
     }
 
     const std::vector<Eigen::Vector3f> plane_rect_base_link = getPlaneRectangle(cloud_plane, coefficients);
@@ -545,10 +580,10 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
           sstr >> percept.info.name;
 
           Eigen::Vector3f centroid_coords(
-               (plane_rect_data_ordered[0].point_base_link +
-                plane_rect_data_ordered[1].point_base_link +
-                plane_rect_data_ordered[2].point_base_link +
-                plane_rect_data_ordered[3].point_base_link) * 0.25 );
+                (plane_rect_data_ordered[0].point_base_link +
+                 plane_rect_data_ordered[1].point_base_link +
+                 plane_rect_data_ordered[2].point_base_link +
+                 plane_rect_data_ordered[3].point_base_link) * 0.25 );
 
           percept.pose.pose.position.x = centroid_coords.x();
           percept.pose.pose.position.y = centroid_coords.y();
@@ -563,6 +598,7 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
         ROS_ERROR("Service call failed");
       }
     }
+  }
 }
 
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::CameraInfo, sensor_msgs::PointCloud2> ApproximateTimeSyncPolicy;
@@ -570,40 +606,40 @@ typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sens
 int main(int argc, char** argv)
 {
 
-    ros::init(argc, argv, "plane_detection");
-    ros::NodeHandle nh_("~");
+  ros::init(argc, argv, "plane_detection");
+  ros::NodeHandle nh_("~");
 
-    nh_.getParam("sign_width", sign_width);
-    nh_.getParam("sign_height", sign_height);
-    nh_.getParam("width_tolerance", sign_width_tolerance);
-    nh_.getParam("height_tolerance", sign_height_tolerance);
-    nh_.getParam("height_cutoff_min", height_cutoff_min);
-    nh_.getParam("height_cutoff_max", height_cutoff_max);
+  nh_.getParam("sign_width", sign_width);
+  nh_.getParam("sign_height", sign_height);
+  nh_.getParam("width_tolerance", sign_width_tolerance);
+  nh_.getParam("height_tolerance", sign_height_tolerance);
+  nh_.getParam("height_cutoff_min", height_cutoff_min);
+  nh_.getParam("height_cutoff_max", height_cutoff_max);
 
-    image_transport::ImageTransport it_(nh_);
+  image_transport::ImageTransport it_(nh_);
 
 
-    tf::TransformListener l;
-    listener = &l;
+  tf::TransformListener l;
+  listener = &l;
 
-    image_pub = nh_.advertise<sensor_msgs::Image>("/plane_image",1);
-    poly_pub = nh_.advertise<geometry_msgs::PolygonStamped>("/digit_plane_poly",1);
-    plane_pub = nh_.advertise<sensor_msgs::PointCloud2>("/plane", 1);
-    percept_publisher_ = nh_.advertise<hector_worldmodel_msgs::PosePercept>("/worldmodel/pose_percept", 1);
+  image_pub = nh_.advertise<sensor_msgs::Image>("/plane_image",1);
+  poly_pub = nh_.advertise<geometry_msgs::PolygonStamped>("/digit_plane_poly",1);
+  plane_pub = nh_.advertise<sensor_msgs::PointCloud2>("/plane", 1);
+  percept_publisher_ = nh_.advertise<hector_worldmodel_msgs::PosePercept>("/worldmodel/pose_percept", 1);
 
-    image_transport::SubscriberFilter image_sub;
-    message_filters::Subscriber<sensor_msgs::CameraInfo> info_sub;
-    message_filters::Subscriber<sensor_msgs::PointCloud2> pc_sub;
-    message_filters::Synchronizer<ApproximateTimeSyncPolicy> sync_(ApproximateTimeSyncPolicy(5), image_sub, info_sub, pc_sub);
+  image_transport::SubscriberFilter image_sub;
+  message_filters::Subscriber<sensor_msgs::CameraInfo> info_sub;
+  message_filters::Subscriber<sensor_msgs::PointCloud2> pc_sub;
+  message_filters::Synchronizer<ApproximateTimeSyncPolicy> sync_(ApproximateTimeSyncPolicy(5), image_sub, info_sub, pc_sub);
 
-    image_sub.subscribe(it_,"/camera/rgb/image_raw", 1);
-    info_sub.subscribe(nh_, "/camera/rgb/camera_info", 1);
-    pc_sub.subscribe(nh_, "/camera/depth/points", 1);
-    sync_.registerCallback(boost::bind(&callback, _1, _2, _3));
+  image_sub.subscribe(it_,"/camera/rgb/image_raw", 1);
+  info_sub.subscribe(nh_, "/camera/rgb/camera_info", 1);
+  pc_sub.subscribe(nh_, "/camera/depth/points", 1);
+  sync_.registerCallback(boost::bind(&callback, _1, _2, _3));
 
-    digit_service = nh_.serviceClient<hector_digit_detection_msgs::Image2Digit>("/image2digit");
+  digit_service = nh_.serviceClient<hector_digit_detection_msgs::Image2Digit>("/image2digit");
 
-    ros::spin();
+  ros::spin();
 
-    return 0;
+  return 0;
 }
