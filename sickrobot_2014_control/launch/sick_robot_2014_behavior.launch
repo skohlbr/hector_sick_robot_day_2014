@@ -7,6 +7,7 @@
                 
  <param name="exploration_circle_radius" value="3.5" />  <!--wie groß der radius von dem kreis ist wo wir explorieren-->
  <param name="exploration_dist_wall" value="2.0" /> <!--wie weit wir bei explore von der wand weg an der wand entlang fahren -->
+   <param name="max_load_duration_in_sec" value="11.0" /> <!--wie weit wir bei explore von der wand weg an der wand entlang fahren -->
 
 
   </node>

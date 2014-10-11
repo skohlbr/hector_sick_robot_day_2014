@@ -822,7 +822,7 @@ protected:
                 sstr << object.info.name;
                 int curr_number_unload_station;
                 sstr >> curr_number_unload_station;
-                if ((object.info.class_id=="unload_fiducial")&&(present_holzklotz==curr_number_unload_station)){
+                if ((object.info.class_id=="unload_station")&&(present_holzklotz==curr_number_unload_station)){
 
                     if(object.info.support>best_support){
                         if(object.state.state==2){
