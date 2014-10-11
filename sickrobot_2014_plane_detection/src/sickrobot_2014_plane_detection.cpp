@@ -305,43 +305,18 @@ bool segmentDigitPlane(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, boos
 
     ROS_DEBUG("Filtering done");
 
-    if(inliers->indices.size() < 100){
-        return false;
+    size_t cloud_size = cloud->size();
+
+    // We can do this as we checked that cloud is != 0 at beginning of this method
+    double ratio = static_cast<double>(inliers->indices.size()) / static_cast<double>(cloud_size);
+
+    if (ratio < 0.5){
+      ROS_DEBUG("Reject candidate plane because of inlier ratio %f", ratio);
+      return false;
     }
 
     cloud_plane = cloud_filtered;
     return true;
-
-
-    //----------------- Filter out spurious stuff in the environment (Assume table is largest cluster) -----------
-
-
-
-/*
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);
-
-    if  (cluster_indices.size() > 0){
-        pcl::PointIndices& indices = cluster_indices[0];
-
-        size_t size = indices.indices.size();
-
-        ROS_DEBUG("Indices size: %d", size);
-
-        for (size_t i = 0; i < size; ++i){
-            cloud_cluster->points.push_back(cloud_filtered->points[indices.indices[i]]);
-        }
-        cloud_cluster->width = cloud_cluster->points.size ();
-        cloud_cluster->height = 1;
-        cloud_cluster->is_dense = true;
-
-    }else{
-        return false;
-    }
-
-    cloud_plane = cloud_cluster;
-
-    return true;
-    */
 }
 
 void getCandidateClusters(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, std::vector<pcl::PointIndices>& cluster_indices)
@@ -507,16 +482,14 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);
 
 
-  //std::vector<pcl::PointIndices> cluster_indices;
+  std::vector<pcl::PointIndices> cluster_indices;
 
-  //getCandidateClusters(cloud, cluster_indices);
+  getCandidateClusters(cloud, cluster_indices);
 
-  //int max_clusters = std::min(5, (int)cluster_indices.size());
+  int max_clusters = std::min(5, (int)cluster_indices.size());
 
-  //for (int i = 0; i < max_clusters; ++i){
-  {
+  for (int i = 0; i < max_clusters; ++i){
 
-    /*
     cloud_cluster->clear();
 
     pcl::PointIndices& indices = cluster_indices[i];
@@ -537,13 +510,14 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
       ROS_DEBUG("Segmentation failed");
       break;
     }
-    */
 
+
+    /*
     if(!segmentDigitPlane(cloud, cloud_plane, coefficients, convex_hull)){
       ROS_DEBUG("Segmentation failed");
-      //break;
       return;
     }
+    */
 
     const std::vector<Eigen::Vector3f> plane_rect_base_link = getPlaneRectangle(cloud_plane, coefficients);
 
