@@ -11,6 +11,7 @@
 #include "std_msgs/String.h"
 #include <sickrobot_2014_msgs/StartMission.h>
 #include <sickrobot_2014_msgs/ExecuteState.h>
+#include <sickrobot_2014_msgs/SetLedState.h>
 #include <tf/transform_broadcaster.h>
 #include <math.h>
 #include <opencv2/core/core.hpp>
@@ -40,6 +41,8 @@
 #include <hector_nav_msgs/GetDistanceToObstacle.h>
 
 #include <sstream>
+
+
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
 
 class sickrobot_behaviour {
@@ -78,6 +81,7 @@ public:
         sick_nh.param("max_load_duration_in_sec", max_loading_time, 20.0); //in sec
 
         getDist_client = root.serviceClient<hector_nav_msgs::GetDistanceToObstacle>("hector_map_server/get_distance_to_obstacle");
+        set_Blinky = root.serviceClient<sickrobot_2014_msgs::SetLedState>("/set_led_state");
 
         //    executeState = sick_nh.advertiseService("execute_state", &sickrobot_behaviour::executeStateCb, this);
 
@@ -535,18 +539,25 @@ protected:
 
     void load_cargo_task(){
         ROS_INFO("state: load_cargo");
+        sickrobot_2014_msgs::SetLedState set_blinky_srv;
+        set_blinky_srv.request.state=true;
+        set_Blinky.call(set_blinky_srv);
         ros::Time start=ros::Time::now();
 
         while (!_has_cargo){
             if(present_holzklotz >= 0){
                 _has_cargo=true;
                 _state = STATE_FIND_UNLOAD_STATION;
+                set_blinky_srv.request.state=false;
+                set_Blinky.call(set_blinky_srv);
                 return;
                 //set the number of current unload station
             }
 
             if ((ros::Time::now()-start).toSec()>max_loading_time){
                 _state = STATE_DRIVE_TO_LOAD_STATION;
+                set_blinky_srv.request.state=false;
+                set_Blinky.call(set_blinky_srv);
                 return;
             }
             ros::Duration(0.1).sleep();
@@ -982,13 +993,17 @@ protected:
     }
 
     void unload_cargo_task(){
-
+        sickrobot_2014_msgs::SetLedState set_blinky_srv;
+        set_blinky_srv.request.state=true;
+        set_Blinky.call(set_blinky_srv);
         ROS_INFO("state: unload_cargo");
         ros::Time start=ros::Time::now();
         while (_has_cargo){
             if(present_holzklotz < 0){ // check if scanner sending -1 in case of no detection
                 _has_cargo=false;
                 _state = STATE_DRIVE_TO_LOAD_STATION;
+                set_blinky_srv.request.state=false;
+                set_Blinky.call(set_blinky_srv);
                 return;
 
                 //set the number of current unload station
@@ -996,6 +1011,8 @@ protected:
 
             if((ros::Time::now()-start).toSec()>max_loading_time){
                 _state=STATE_FIND_UNLOAD_STATION;
+                set_blinky_srv.request.state=false;
+                set_Blinky.call(set_blinky_srv);
                 return;
             }
             ros::Duration(0.1).sleep();
@@ -1734,6 +1751,7 @@ private:
 
 
     ros::ServiceClient getDist_client;
+    ros::ServiceClient set_Blinky;
     // class-id of the target balls
     std::string          _ball_color;
 
