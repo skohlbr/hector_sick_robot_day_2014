@@ -391,7 +391,7 @@ protected:
 
                         //check if there is a target in a certain radius around us NEED case we dont know this target yet!!!!
                         if(dist_target<2.0){
-                            if(object.state.state!=-3){
+                            if(object.state.state==2){
                                 found_first_load_station_target=true;
                                 current_target=object;
                                 first_load_station=object;
@@ -582,9 +582,9 @@ protected:
             sstr << object.info.name;
             int curr_number_unload_station;
             sstr >> curr_number_unload_station;
-            if ((object.info.class_id=="unload_fiducial")&&(present_holzklotz==curr_number_unload_station)){
+            if ((object.info.class_id=="unload_station")&&(present_holzklotz==curr_number_unload_station)){
                 if(object.info.support>best_support){
-                    if(object.state.state!=-3){
+                    if(object.state.state==2){
                         station_known=true;
                         current_target=object;
                         best_support=object.info.support;
@@ -818,7 +818,7 @@ protected:
                 if ((object.info.class_id=="unload_fiducial")&&(present_holzklotz==curr_number_unload_station)){
 
                     if(object.info.support>best_support){
-                        if(object.state.state!=-3){
+                        if(object.state.state==2){
                             is_known=true;
                             current_target=object;
                             best_support=object.info.support;
@@ -912,7 +912,7 @@ protected:
 
                     //check if there is a target in a certain radius around us NEED case we dont know this target yet!!!!
                     if(dist_target<2.0){
-                        if(object.state.state!=-3){
+                        if(object.state.state==2){
                             current_target=object;
                             _state=STATE_POSITIONING;
                             ROS_INFO("we already now the target, no need for extra grob-positioning");
@@ -965,7 +965,7 @@ protected:
 
                         //check if there is a target in a certain radius around us NEED case we dont know this target yet!!!!
                         if(dist_target<2.0){
-                            if(object.state.state!=-3){
+                            if(object.state.state==2){
                                 is_known=true;
                                 current_target=object;
                             }}
@@ -1048,7 +1048,7 @@ protected:
                         sstr << object.info.name;
                         int curr_number_unload_station;
                         sstr >> curr_number_unload_station;
-                        if ((object.info.class_id=="unload_fiducial")&&(present_holzklotz==curr_number_unload_station)){
+                        if ((object.info.class_id=="unload_station")&&(present_holzklotz==curr_number_unload_station)){
 
                                 hector_worldmodel_msgs::SetObjectState setObj_srv;
                                 setObj_srv.request.object_id=object.info.object_id;
@@ -1098,7 +1098,7 @@ protected:
 
                     //check if there is a target in a certain radius around us NEED case we dont know this target yet!!!!
                     if(dist_target<2.0){
-                        if(object.state.state!=-3){
+                        if(object.state.state==2){
 
                             current_target=object;
                             _state=STATE_POSITIONING;
