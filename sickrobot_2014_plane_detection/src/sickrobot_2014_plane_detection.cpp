@@ -507,14 +507,16 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);
 
 
-  std::vector<pcl::PointIndices> cluster_indices;
+  //std::vector<pcl::PointIndices> cluster_indices;
 
-  getCandidateClusters(cloud, cluster_indices);
+  //getCandidateClusters(cloud, cluster_indices);
 
-  int max_clusters = std::min(5, (int)cluster_indices.size());
+  //int max_clusters = std::min(5, (int)cluster_indices.size());
 
-  for (int i = 0; i < max_clusters; ++i){
+  //for (int i = 0; i < max_clusters; ++i){
+  {
 
+    /*
     cloud_cluster->clear();
 
     pcl::PointIndices& indices = cluster_indices[i];
@@ -534,6 +536,13 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
     if(!segmentDigitPlane(cloud_cluster, cloud_plane, coefficients, convex_hull)){
       ROS_DEBUG("Segmentation failed");
       break;
+    }
+    */
+
+    if(!segmentDigitPlane(cloud, cloud_plane, coefficients, convex_hull)){
+      ROS_DEBUG("Segmentation failed");
+      //break;
+      return;
     }
 
     const std::vector<Eigen::Vector3f> plane_rect_base_link = getPlaneRectangle(cloud_plane, coefficients);
