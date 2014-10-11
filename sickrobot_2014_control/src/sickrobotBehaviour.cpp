@@ -392,9 +392,11 @@ protected:
                         //check if there is a target in a certain radius around us NEED case we dont know this target yet!!!!
                         if(dist_target<2.0){
                             if(object.state.state==2){
+                              // if (std::abs(object.pose.pose.position.y)<0.3){
                                 found_first_load_station_target=true;
                                 current_target=object;
                                 first_load_station=object;
+                               // }
                             }
                         }
                     }
@@ -1315,7 +1317,7 @@ protected:
 
 
         int failures=0;
-        while(failures<20){
+        while(failures<5){
             goal.target_pose.header.frame_id = "map";
 
 
