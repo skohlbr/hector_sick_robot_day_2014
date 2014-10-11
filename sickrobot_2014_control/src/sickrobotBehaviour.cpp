@@ -15,7 +15,7 @@
 #include <math.h>
 #include <opencv2/core/core.hpp>
 #include <opencv/cv.h>
-
+#include <angles/angles.h>
 //#include <LinearMath/btTransform.h>
 #include <tf_conversions/tf_eigen.h>
 
@@ -75,6 +75,7 @@ public:
         sick_nh.param("exploration_circle_radius", exploration_circle_radius, 6.0);
         sick_nh.param("exploration_error_dis_wall_threshold", exploration_error_dis_wall_threshold, 0.1);
         sick_nh.param("exploration_distance_mp_start", exploration_distance_mp_start, 6.0);
+        sick_nh.param("max_load_duration_in_sec", max_loading_time, 20.0); //in sec
 
         getDist_client = root.serviceClient<hector_nav_msgs::GetDistanceToObstacle>("hector_map_server/get_distance_to_obstacle");
 
@@ -452,6 +453,9 @@ protected:
 
        // if (mbClient->getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
             if (failure_result>=0) {
+
+
+
             ROS_INFO("Great we reached the goal");
             //initialize Twist-Message
             geometry_msgs::Twist cmdVelTwist;
@@ -464,17 +468,19 @@ protected:
 
             getCurrentPosition(&my_pos, &my_yaw);
             float offset_error;
-            offset_error=(std::abs(my_pos.x- current_target.pose.pose.position.x)-dist_wall);
-            //std::cout << "ofset error " <<offset_error<<std::endl;
+            std::cout << "dist :" <<sqrt((my_pos.x- current_target.pose.pose.position.x)*(my_pos.x- current_target.pose.pose.position.x)+(my_pos.y- current_target.pose.pose.position.y)*(my_pos.y- current_target.pose.pose.position.y)) << "     dist to wall " << dist_wall<<std::endl;
+            offset_error=(sqrt((my_pos.x- current_target.pose.pose.position.x)*(my_pos.x- current_target.pose.pose.position.x)+(my_pos.y- current_target.pose.pose.position.y)*(my_pos.y- current_target.pose.pose.position.y))-dist_wall);
+           // offset_error_y=(std::abs(my_pos.y- current_target.pose.pose.position.y)-dist_wall);
+            std::cout << "ofset error " <<offset_error<<std::endl;
 
             // std::cout << "my pos " << my_pos.x<<  "   target " <<current_target.pose.pose.position.x <<" norm  "<<0.25*normal_slope_x<<std::endl;
-            std::cout << " dist to target " << std::abs(my_pos.x- current_target.pose.pose.position.x)+cmd_vel_distance_to_wall*normal_slope_x-offset_error << std::endl;
-            while (((std::abs(my_pos.x- current_target.pose.pose.position.x)+cmd_vel_distance_to_wall*normal_slope_x-offset_error)>0.05)){
+            std::cout << " dist to target " <<(sqrt((my_pos.x- current_target.pose.pose.position.x)*(my_pos.x- current_target.pose.pose.position.x)+(my_pos.y- current_target.pose.pose.position.y)*(my_pos.y- current_target.pose.pose.position.y))-offset_error)<< std::endl;
+             while (((sqrt((my_pos.x- current_target.pose.pose.position.x)*(my_pos.x- current_target.pose.pose.position.x)+(my_pos.y- current_target.pose.pose.position.y)*(my_pos.y- current_target.pose.pose.position.y))-cmd_vel_distance_to_wall-offset_error)>0.05)){
                 //        if (dist > 0.5)
                 //          dist = 0.5;
 
 
-                std::cout << " dist to target " << std::abs(my_pos.x- current_target.pose.pose.position.x)+cmd_vel_distance_to_wall*normal_slope_x-offset_error << std::endl;
+                std::cout << " dist to target " <<(sqrt((my_pos.x- current_target.pose.pose.position.x)*(my_pos.x- current_target.pose.pose.position.x)+(my_pos.y- current_target.pose.pose.position.y)*(my_pos.y- current_target.pose.pose.position.y))-cmd_vel_distance_to_wall-offset_error)<< std::endl;
 
                 cmdVelTwist.linear.x = 0.1;
 
@@ -529,12 +535,19 @@ protected:
 
     void load_cargo_task(){
         ROS_INFO("state: load_cargo");
+        ros::Time start=ros::Time::now();
+
         while (!_has_cargo){
             if(present_holzklotz >= 0){
                 _has_cargo=true;
                 _state = STATE_FIND_UNLOAD_STATION;
-                break;
+                return;
                 //set the number of current unload station
+            }
+
+            if ((ros::Time::now()-start).toSec()>max_loading_time){
+                _state = STATE_DRIVE_TO_LOAD_STATION;
+                return;
             }
             ros::Duration(0.1).sleep();
         }
@@ -941,12 +954,19 @@ protected:
     void unload_cargo_task(){
 
         ROS_INFO("state: unload_cargo");
+        ros::Time start=ros::Time::now();
         while (_has_cargo){
             if(present_holzklotz < 0){ // check if scanner sending -1 in case of no detection
                 _has_cargo=false;
                 _state = STATE_DRIVE_TO_LOAD_STATION;
-                break;
+                return;
+
                 //set the number of current unload station
+            }
+
+            if((ros::Time::now()-start).toSec()>max_loading_time){
+                _state=STATE_FIND_UNLOAD_STATION;
+                return;
             }
             ros::Duration(0.1).sleep();
         }
@@ -1216,6 +1236,54 @@ protected:
 
 
           // setState(STATE_STOP);
+          double roll_q, pitch_q, yaw_q;
+          tf::Quaternion q(goal.target_pose.pose.orientation.x,goal.target_pose.pose.orientation.y,goal.target_pose.pose.orientation.z,goal.target_pose.pose.orientation.w);
+          tf::Matrix3x3(q).getRPY(roll_q,pitch_q,yaw_q);
+
+          geometry_msgs::Point my_pos;
+          float                my_yaw;
+
+          getCurrentPosition(&my_pos, &my_yaw);
+          geometry_msgs::Twist cmdVelTwist;
+
+          double diff=yaw_q-my_yaw;
+          int dir;
+          if (std::abs(diff)<=M_PI){
+              if(diff>0){
+                  dir=1;
+              }
+              else{
+                  dir=-1;
+              }
+
+          }
+          else{
+              if(diff>0){
+                  dir=-1;
+              }
+              else{
+                  dir=1;
+              }
+
+          }
+
+
+          cmdVelTwist.linear.x = 0.0;
+          cmdVelTwist.angular.z = dir*0.1;
+          cmdVelPublisher.publish(cmdVelTwist);
+
+          while (angles::shortest_angular_distance(my_yaw,yaw_q)>0.05){
+
+
+              cmdVelPublisher.publish(cmdVelTwist);
+              ros::Duration(0.1).sleep();
+              getCurrentPosition(&my_pos, &my_yaw);
+
+          }
+          cmdVelTwist.linear.x = 0.0;
+          cmdVelTwist.angular.z = 0.0;
+          cmdVelPublisher.publish(cmdVelTwist);
+
 
           return failures;
       }
@@ -1664,6 +1732,8 @@ private:
 
     geometry_msgs::Point mp_arena;
     move_base_msgs::MoveBaseGoal anfahr_goal_first_loadstation;
+
+    double max_loading_time;
 
 
     enum State {
