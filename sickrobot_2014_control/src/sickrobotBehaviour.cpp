@@ -558,6 +558,7 @@ protected:
     void find_unload_station_task(){
         ROS_INFO("state: find_unload_station");
         bool station_known=false;
+        double best_support=0.0;
         //TODO find unload station in worldmodel
         for (int i=0;i< objects->objects.size();i++){
             hector_worldmodel_msgs::Object object = objects->objects[i];
@@ -566,8 +567,11 @@ protected:
             int curr_number_unload_station;
             sstr >> curr_number_unload_station;
             if ((object.info.class_id=="unload_fiducial")&&(present_holzklotz==curr_number_unload_station)){
+                if(object.info.support>best_support){
                 station_known=true;
                 current_target=object;
+                best_support=object.info.support;
+                }
             }
 
         }
