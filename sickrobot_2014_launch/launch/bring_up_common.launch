@@ -2,6 +2,7 @@
 <launch>
 
     <include file="$(find hector_turtlebot_navigation)/launch/gmapping.launch" />
+    <!--<include file="$(find hector_turtlebot_navigation)/launch/hector_mapping.launch" />-->
 
     <include file="$(find hector_object_tracker)/launch/object_tracker_sick_robot_day_2014.launch" />
 

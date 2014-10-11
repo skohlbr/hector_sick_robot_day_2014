@@ -576,7 +576,7 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
           percept.info.class_id = "unload_fiducial";
           percept.info.class_support = 1.0;
 
-          percept.info.object_support = 0.01;
+          //percept.info.object_support = 0.01;
           std::stringstream sstr;
           sstr << image2digit.response.digit;
           sstr >> percept.info.name;
