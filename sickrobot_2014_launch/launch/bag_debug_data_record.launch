@@ -1,11 +1,11 @@
 <?xml version="1.0"?>
 <launch>
 
-  <arg name="interval_seconds" default="1.0" />
+  <arg name="interval_seconds" default="4.0" />
 
   <node pkg="topic_tools" type="throttle" name="$(anon throttled_record)" args="messages /forward_cam/image_raw $(arg interval_seconds) /forward_cam/image_raw_throttled" />
   
   <node pkg="rosbag" type="record" name="rosbag_record_debug_data_record"
-       args="-o $(find sickrobot_2014_launch)/bags/srd2014_comp /tf /odom /map /scan /plane_image /digit_plane_poly /worldmodel/objects" output="screen"/>
+       args="-o $(find sickrobot_2014_launch)/bags/srd2014_comp /tf /odom /map /scan /plane_image /digit_plane_poly /worldmodel/objects /forward_cam/image_raw_throttled" output="screen"/>
 
 </launch>
