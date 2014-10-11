@@ -87,6 +87,7 @@ void filterDepth(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud){
     no_ground_pass.setInputCloud (cloud);
     no_ground_pass.setFilterFieldName ("z");
     //no_ground_pass.setFilterLimits (wall_distance - 1.0, wall_distance + 1.0);
+    no_ground_pass.setFilterLimits (0.8, 3.5);
 
     no_ground_pass.filter (*cloud_filtered);
 
@@ -304,43 +305,18 @@ bool segmentDigitPlane(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, boos
 
     ROS_DEBUG("Filtering done");
 
-    if(inliers->indices.size() < 100){
-        return false;
+    size_t cloud_size = cloud->size();
+
+    // We can do this as we checked that cloud is != 0 at beginning of this method
+    double ratio = static_cast<double>(inliers->indices.size()) / static_cast<double>(cloud_size);
+
+    if (ratio < 0.5){
+      ROS_DEBUG("Reject candidate plane because of inlier ratio %f", ratio);
+      return false;
     }
 
     cloud_plane = cloud_filtered;
     return true;
-
-
-    //----------------- Filter out spurious stuff in the environment (Assume table is largest cluster) -----------
-
-
-
-/*
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);
-
-    if  (cluster_indices.size() > 0){
-        pcl::PointIndices& indices = cluster_indices[0];
-
-        size_t size = indices.indices.size();
-
-        ROS_DEBUG("Indices size: %d", size);
-
-        for (size_t i = 0; i < size; ++i){
-            cloud_cluster->points.push_back(cloud_filtered->points[indices.indices[i]]);
-        }
-        cloud_cluster->width = cloud_cluster->points.size ();
-        cloud_cluster->height = 1;
-        cloud_cluster->is_dense = true;
-
-    }else{
-        return false;
-    }
-
-    cloud_plane = cloud_cluster;
-
-    return true;
-    */
 }
 
 void getCandidateClusters(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, std::vector<pcl::PointIndices>& cluster_indices)
@@ -453,10 +429,10 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
   pcl::fromROSMsg(*pc_msg, *cloud);
   //ROS_INFO("Original: %d", cloud->size());
 
+  filterDepth(cloud);
+
   filterVoxel(cloud, 0.02);
 
-
-  //filterDepth(cloud);
   //ROS_INFO("Depth: %d", cloud->size());
   //filterHeight(cloud);
   //ROS_INFO("Height: %d", cloud->size());
@@ -535,6 +511,14 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
       break;
     }
 
+
+    /*
+    if(!segmentDigitPlane(cloud, cloud_plane, coefficients, convex_hull)){
+      ROS_DEBUG("Segmentation failed");
+      return;
+    }
+    */
+
     const std::vector<Eigen::Vector3f> plane_rect_base_link = getPlaneRectangle(cloud_plane, coefficients);
 
     publishPolygonMsg(plane_rect_base_link, pc_msg->header);
@@ -565,7 +549,6 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
         image_pub.publish(new_msg);
       }
 
-      ROS_INFO("Plane detect total proc time: %f milliseconds", (ros::WallTime::now() - start_proc_time).toSec()*1000.0);
 
       if(digit_service.call(image2digit)){
         if(image2digit.response.digit >= 0){
@@ -601,6 +584,8 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
       }
     }
   }
+  ROS_INFO("Plane detect total proc time: %f milliseconds", (ros::WallTime::now() - start_proc_time).toSec()*1000.0);
+
 }
 
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::CameraInfo, sensor_msgs::PointCloud2> ApproximateTimeSyncPolicy;

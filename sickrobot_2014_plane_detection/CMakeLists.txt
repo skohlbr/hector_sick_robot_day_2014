@@ -12,8 +12,8 @@ find_package(catkin REQUIRED COMPONENTS
   image_transport
   geometry_msgs
   image_geometry
-  hector_worldmodel_msgs
   hector_digit_detection_msgs
+  hector_worldmodel_msgs
   tf_conversions
 )
 
