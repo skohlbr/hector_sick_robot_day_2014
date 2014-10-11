@@ -346,17 +346,19 @@ bool segmentDigitPlane(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, boos
 void getCandidateClusters(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, std::vector<pcl::PointIndices>& cluster_indices)
 {
   //Creating the KdTree object for the search method of the extraction
-  pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
-  tree->setInputCloud (cloud);
+  if (!cloud->empty()){
+    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
+    tree->setInputCloud (cloud);
 
-  pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
-  ec.setClusterTolerance (0.05);
-  ec.setMinClusterSize (800);
-  ec.setMaxClusterSize (2400);
-  ec.setSearchMethod (tree);
-  ec.setInputCloud (cloud);
-  ec.extract (cluster_indices);
-  ROS_DEBUG("Extraction done: %d", cluster_indices.size());
+    pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
+    ec.setClusterTolerance (0.05);
+    ec.setMinClusterSize (800);
+    ec.setMaxClusterSize (2400);
+    ec.setSearchMethod (tree);
+    ec.setInputCloud (cloud);
+    ec.extract (cluster_indices);
+    ROS_DEBUG("Extraction done: %d", cluster_indices.size());
+  }
 }
 
 std::vector<Eigen::Vector3f> getPlaneRectangle(boost::shared_ptr< pcl::PointCloud<PointT> >& cloud, pcl::ModelCoefficients::Ptr& coefficients)
