@@ -573,7 +573,7 @@ void callback(const sensor_msgs::Image::ConstPtr &image_msg,
           hector_worldmodel_msgs::PosePercept percept;
           percept.header.stamp = pc_msg->header.stamp;
           percept.header.frame_id = "base_link";
-          percept.info.class_id = "unload_fiducial";
+          percept.info.class_id = "unload_station";
           percept.info.class_support = 1.0;
 
           //percept.info.object_support = 0.01;
