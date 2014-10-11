@@ -65,3 +65,9 @@ generate_messages(
   std_msgs  # Or other packages containing msgs
   sensor_msgs
 )
+
+catkin_package(
+    LIBRARIES
+    CATKIN_DEPENDS roscpp rospy std_msgs sensor_msgs
+    DEPENDS
+)
