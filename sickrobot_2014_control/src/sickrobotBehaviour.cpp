@@ -869,6 +869,32 @@ protected:
 //jetzt haben wir hoffentlich sichtkontakt und berechnen dir normale zur wand nochmal über cvgetnormal,
             //dann fahren wir dahin, mit dem generellen wand abstand zur grobpositionierung
 
+            geometry_msgs::Point my_pos_curr;
+            float                my_yaw_curr;
+
+            getCurrentPosition(&my_pos_curr, &my_yaw_curr);
+            for (int i=0;i< objects->objects.size();i++){
+                hector_worldmodel_msgs::Object object = objects->objects[i];
+                std::stringstream sstr;
+                sstr << object.info.name;
+                int curr_number_unload_station;
+                sstr >> curr_number_unload_station;
+
+                if (object.info.class_id=="target_fiducial"){
+                  double dist_target=sqrt((object.pose.pose.position.x-my_pos_curr.x)*(object.pose.pose.position.x-my_pos_curr.x)+(object.pose.pose.position.y-my_pos_curr.y)*(object.pose.pose.position.y-my_pos_curr.y));
+
+                  //check if there is a target in a certain radius around us NEED case we dont know this target yet!!!!
+                  if(dist_target<2.0){
+
+                    current_target=object;
+                    _state=STATE_POSITIONING;
+                    ROS_INFO("we already now the target, no need for extra grob-positioning");
+                  return;
+                  }
+                }
+
+            }
+
             float normal_slope_x;
             float normal_slope_y;
 
@@ -1608,10 +1634,11 @@ protected:
             ROS_INFO("getNormal TF Error: %s",ex.what());
             return;
         }
-        float yaw = tf::getYaw(trans.getRotation());
-        std::cout<< "yaw = " << yaw<<std::endl;
-        normal_slope_x = normal_slope_x * cos(yaw) - normal_slope_y * sin(yaw);
-        normal_slope_y = normal_slope_x * sin(yaw) + normal_slope_y * cos(yaw);
+
+        tf::Transform t(trans.getRotation());
+        tf::Vector3 v = t * tf::Vector3(normal_slope_x, normal_slope_y, 0.0);
+        normal_slope_x = v.x();
+        normal_slope_y = v.y();
 
 
 //        tf::StampedTransform trans;
