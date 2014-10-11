@@ -26,7 +26,6 @@ def image2digit_service(data):
     if len(image2.shape) > 2 and image2.shape[2] > 2:
         image2 = cv2.cvtColor(image2, cv2.COLOR_BGR2GRAY)
 
-
     h2,w2 = image2.shape[:2]
     image2 = cv2.resize(image2, (int(w2 * (target_height / h2)), int(target_height)))
 
@@ -56,7 +55,12 @@ def image2digit_service(data):
         x,y,w,h = cv2.boundingRect(contours[mini])
         image2 = image2[y:y+h,x:x+w]
 
-    image2 = cv2.resize(image2, (int(w2 * (target_height / h2)), int(target_height)))
+    h2,w2 = image2.shape[:2]
+    image2_whitemargin = numpy.zeros((h2+6,w2+5,1), numpy.uint8)
+    image2_whitemargin = cv2.bitwise_not(image2_whitemargin)
+    image2_whitemargin[2:h2+2,:w2] = image2
+
+    image2 = cv2.resize(image2_whitemargin, (int(w2 * (target_height / h2)), int(target_height)))
 
     h1,w1 = image1.shape[:2]
     h2,w2 = image2.shape[:2]
@@ -96,6 +100,10 @@ def image2digit_service(data):
 				digit = int(data[7])
 			except ValueError:
 				digit = -1
+
+    # digit threshold in [1,4]
+    if digit > 4 or digit < 1:
+        digit = -1
 
     #print 'Data = %sDigit = %d' % (data, digit)
     return digit, 0.0
