@@ -2,10 +2,10 @@
 <launch>
 <node pkg="sickrobot_2014_control" type="sickrobot_behaviour" name="sickrobot_behaivour" output="screen">
  <param name="distance_to_wall_first_drive" value="1.0"  /> <!--wie weit wir direkt nach dem start an die wand ran fahren -->
- <param name="cmd_vel_distance_to_wall" value="0.25"/> <!-- wie nah cmd vel bei feinpositionierung an wand dran probiert -->
- <param name="exploration_distance_mp_start " value="6.0" />  <!--wie weit der mittelpkt vom kreis vom start weg ist -->                             
+ <param name="cmd_vel_distance_to_wall" value="0.35"/> <!-- wie nah cmd vel bei feinpositionierung an wand dran probiert -->
+ <param name="exploration_distance_mp_start " value="5.5" />  <!--wie weit der mittelpkt vom kreis vom start weg ist -->                             
                 
- <param name="exploration_circle_radius" value="3.0" />  <!--wie groß der radius von dem kreis ist wo wir explorieren-->
+ <param name="exploration_circle_radius" value="3.5" />  <!--wie groß der radius von dem kreis ist wo wir explorieren-->
  <param name="exploration_dist_wall" value="2.0" /> <!--wie weit wir bei explore von der wand weg an der wand entlang fahren -->
 
 
