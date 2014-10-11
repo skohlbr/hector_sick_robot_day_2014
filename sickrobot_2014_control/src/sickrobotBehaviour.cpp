@@ -11,6 +11,7 @@
 #include "std_msgs/String.h"
 #include <sickrobot_2014_msgs/StartMission.h>
 #include <sickrobot_2014_msgs/ExecuteState.h>
+#include <sickrobot_2014_msgs/SetLedState.h>
 #include <tf/transform_broadcaster.h>
 #include <math.h>
 #include <opencv2/core/core.hpp>
@@ -40,6 +41,8 @@
 #include <hector_nav_msgs/GetDistanceToObstacle.h>
 
 #include <sstream>
+
+
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
 
 class sickrobot_behaviour {
@@ -78,6 +81,7 @@ public:
         sick_nh.param("max_load_duration_in_sec", max_loading_time, 20.0); //in sec
 
         getDist_client = root.serviceClient<hector_nav_msgs::GetDistanceToObstacle>("hector_map_server/get_distance_to_obstacle");
+        set_Blinky = root.serviceClient<sickrobot_2014_msgs::SetLedState>("/set_led_state");
 
         //    executeState = sick_nh.advertiseService("execute_state", &sickrobot_behaviour::executeStateCb, this);
 
@@ -385,9 +389,12 @@ protected:
 
                     //check if there is a target in a certain radius around us NEED case we dont know this target yet!!!!
                     if(dist_target<2.0){
+                        if(object.state.state==2){
                       found_first_load_station_target=true;
                       current_target=object;
-                    first_load_station=object;}
+                    first_load_station=object;
+                        }
+                    }
                   }
 
               }
@@ -535,18 +542,25 @@ protected:
 
     void load_cargo_task(){
         ROS_INFO("state: load_cargo");
+        sickrobot_2014_msgs::SetLedState set_blinky_srv;
+        set_blinky_srv.request.state=true;
+        set_Blinky.call(set_blinky_srv);
         ros::Time start=ros::Time::now();
 
         while (!_has_cargo){
             if(present_holzklotz >= 0){
                 _has_cargo=true;
                 _state = STATE_FIND_UNLOAD_STATION;
+                set_blinky_srv.request.state=false;
+                set_Blinky.call(set_blinky_srv);
                 return;
                 //set the number of current unload station
             }
 
             if ((ros::Time::now()-start).toSec()>max_loading_time){
                 _state = STATE_DRIVE_TO_LOAD_STATION;
+                set_blinky_srv.request.state=false;
+                set_Blinky.call(set_blinky_srv);
                 return;
             }
             ros::Duration(0.1).sleep();
@@ -568,9 +582,11 @@ protected:
             sstr >> curr_number_unload_station;
             if ((object.info.class_id=="unload_fiducial")&&(present_holzklotz==curr_number_unload_station)){
                 if(object.info.support>best_support){
+                    if(object.state.state==2){
                 station_known=true;
                 current_target=object;
                 best_support=object.info.support;
+                    }
                 }
             }
 
@@ -790,7 +806,7 @@ protected:
 //                ROS_INFO("That was bad, we didn't reach our goal");
 //            }
             // }
-
+            double best_support=0.0;
             for (int i=0;i< objects->objects.size();i++){
                 hector_worldmodel_msgs::Object object = objects->objects[i];
                 std::stringstream sstr;
@@ -798,10 +814,14 @@ protected:
                 int curr_number_unload_station;
                 sstr >> curr_number_unload_station;
                 if ((object.info.class_id=="unload_fiducial")&&(present_holzklotz==curr_number_unload_station)){
+
+                    if(object.info.support>best_support){
+                        if(object.state.state==2){
                     is_known=true;
                     current_target=object;
-                     _state=STATE_DRIVE_TO_UNLOAD_STATION;
-                    return;
+                    best_support=object.info.support;
+                        }
+                    }
                 }
 
             }
@@ -889,11 +909,12 @@ protected:
 
                   //check if there is a target in a certain radius around us NEED case we dont know this target yet!!!!
                   if(dist_target<2.0){
-
+                      if(object.state.state==2){
                     current_target=object;
                     _state=STATE_POSITIONING;
                     ROS_INFO("we already now the target, no need for extra grob-positioning");
                   return;
+                      }
                   }
                 }
 
@@ -941,8 +962,10 @@ protected:
 
                     //check if there is a target in a certain radius around us NEED case we dont know this target yet!!!!
                     if(dist_target<2.0){
+                        if(object.state.state==2){
                       is_known=true;
-                      current_target=object;}
+                      current_target=object;
+                        }}
                   }
 
               }
@@ -982,13 +1005,17 @@ protected:
     }
 
     void unload_cargo_task(){
-
+        sickrobot_2014_msgs::SetLedState set_blinky_srv;
+        set_blinky_srv.request.state=true;
+        set_Blinky.call(set_blinky_srv);
         ROS_INFO("state: unload_cargo");
         ros::Time start=ros::Time::now();
         while (_has_cargo){
             if(present_holzklotz < 0){ // check if scanner sending -1 in case of no detection
                 _has_cargo=false;
                 _state = STATE_DRIVE_TO_LOAD_STATION;
+                set_blinky_srv.request.state=false;
+                set_Blinky.call(set_blinky_srv);
                 return;
 
                 //set the number of current unload station
@@ -996,6 +1023,8 @@ protected:
 
             if((ros::Time::now()-start).toSec()>max_loading_time){
                 _state=STATE_FIND_UNLOAD_STATION;
+                set_blinky_srv.request.state=false;
+                set_Blinky.call(set_blinky_srv);
                 return;
             }
             ros::Duration(0.1).sleep();
@@ -1032,10 +1061,12 @@ protected:
 
               //check if there is a target in a certain radius around us NEED case we dont know this target yet!!!!
               if(dist_target<2.0){
+                  if(object.state.state==2){
 
                 current_target=object;
               _state=STATE_POSITIONING;
               return;
+                  }
               }
             }
 
@@ -1734,6 +1765,7 @@ private:
 
 
     ros::ServiceClient getDist_client;
+    ros::ServiceClient set_Blinky;
     // class-id of the target balls
     std::string          _ball_color;
 
